@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Positions - Trading System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1>Open Positions</h1>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div id="positions-container">
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        loadPositions();
+        setInterval(loadPositions, 2000); // Refresh every 2 seconds for live P&L
+    });
+    
+    function loadPositions() {
+        fetch('/api/positions')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('positions-container');
+                if (data.positions && data.positions.length > 0) {
+                    let html = '<table class="table table-striped"><thead><tr><th>Account</th><th>Instrument</th><th>Long Units</th><th>Short Units</th><th>Long Avg Price</th><th>Short Avg Price</th><th>Unrealized P&L</th></tr></thead><tbody>';
+                    data.positions.forEach(pos => {
+                        const pnlClass = pos.unrealized_pl >= 0 ? 'text-success' : 'text-danger';
+                        html += `
+                            <tr>
+                                <td>${pos.account_id.substring(0, 15)}...</td>
+                                <td><strong>${pos.instrument}</strong></td>
+                                <td>${pos.long_units}</td>
+                                <td>${pos.short_units}</td>
+                                <td>${pos.long_avg_price ? pos.long_avg_price.toFixed(5) : '-'}</td>
+                                <td>${pos.short_avg_price ? pos.short_avg_price.toFixed(5) : '-'}</td>
+                                <td class="${pnlClass}"><strong>$${pos.unrealized_pl.toFixed(2)}</strong></td>
+                            </tr>
+                        `;
+                    });
+                    html += '</tbody></table>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p class="text-muted">No open positions</p>';
+                }
+            })
+            .catch(e => {
+                document.getElementById('positions-container').innerHTML = '<p class="text-danger">Error loading positions</p>';
+            });
+    }
+</script>
+{% endblock %}

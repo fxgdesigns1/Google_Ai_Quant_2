@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Strategies - Trading System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1>Strategy Control</h1>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div id="strategies-container">
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        loadStrategies();
+        setInterval(loadStrategies, 10000); // Refresh every 10 seconds
+    });
+    
+    function loadStrategies() {
+        fetch('/api/strategies')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('strategies-container');
+                if (data.strategies && Object.keys(data.strategies).length > 0) {
+                    let html = '<table class="table table-striped"><thead><tr><th>Strategy</th><th>Status</th><th>Instruments</th><th>Actions</th></tr></thead><tbody>';
+                    Object.entries(data.strategies).forEach(([name, info]) => {
+                        const statusBadge = info.enabled ? '<span class="badge bg-success">Enabled</span>' : '<span class="badge bg-secondary">Disabled</span>';
+                        const actionBtn = info.enabled 
+                            ? `<button class="btn btn-sm btn-danger" onclick="disableStrategy('${name}')">Disable</button>`
+                            : `<button class="btn btn-sm btn-success" onclick="enableStrategy('${name}')">Enable</button>`;
+                        html += `
+                            <tr>
+                                <td>${name}</td>
+                                <td>${statusBadge}</td>
+                                <td>${info.instruments.join(', ')}</td>
+                                <td>${actionBtn}</td>
+                            </tr>
+                        `;
+                    });
+                    html += '</tbody></table>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p class="text-muted">No strategies found</p>';
+                }
+            })
+            .catch(e => {
+                document.getElementById('strategies-container').innerHTML = '<p class="text-danger">Error loading strategies</p>';
+            });
+    }
+    
+    function enableStrategy(name) {
+        fetch(`/api/strategy/${name}/enable`, {method: 'POST'})
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    loadStrategies();
+                } else {
+                    alert('Failed to enable strategy');
+                }
+            });
+    }
+    
+    function disableStrategy(name) {
+        fetch(`/api/strategy/${name}/disable`, {method: 'POST'})
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    loadStrategies();
+                } else {
+                    alert('Failed to disable strategy');
+                }
+            });
+    }
+</script>
+{% endblock %}

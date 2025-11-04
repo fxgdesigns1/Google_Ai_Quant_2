@@ -1,0 +1,392 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Trading System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1>Trading Dashboard</h1>
+        <div class="alert alert-info" id="status-alert">
+            <span id="status-indicator" class="badge bg-secondary">Loading...</span>
+            System Status
+            <span class="float-end" id="last-update">-</span>
+        </div>
+    </div>
+</div>
+
+<!-- Accounts Overview -->
+<div class="row mb-4" id="accounts-row">
+    <div class="col-12">
+        <h3>Account Overview</h3>
+        <div id="accounts-container">
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Performance Metrics & Ratios -->
+<div class="row mb-4">
+    <div class="col-12">
+        <h3>Performance Metrics</h3>
+        <div id="performance-container">
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- AB Lane - Strategy Comparison -->
+<div class="row mb-4">
+    <div class="col-12">
+        <h3>Strategy Comparison (A/B Lane)</h3>
+        <div id="ab-lane-container">
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Open Positions -->
+<div class="row mb-4">
+    <div class="col-12">
+        <h3>Open Positions</h3>
+        <div id="positions-container">
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- News & Sentiment Section -->
+<div class="row mb-4">
+    <!-- News Events -->
+    <div class="col-md-8">
+        <h3>Economic News</h3>
+        <div id="news-container">
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Market Sentiment -->
+    <div class="col-md-4">
+        <h3>Market Sentiment</h3>
+        <div id="sentiment-container">
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- System Information -->
+<div class="row">
+    <div class="col-12">
+        <h3>System Information</h3>
+        <div class="card">
+            <div class="card-body">
+                <p><strong>Market Data:</strong> <span id="market-data-status">-</span></p>
+                <p><strong>Last Update:</strong> <span id="last-update-time">-</span></p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script>
+    // Load dashboard data on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        loadDashboard();
+        setInterval(loadDashboard, 5000); // Refresh every 5 seconds
+    });
+    
+    function loadDashboard() {
+        // Load status
+        fetch('/api/status')
+            .then(r => r.json())
+            .then(data => {
+                const indicator = document.getElementById('status-indicator');
+                if (data.status === 'online') {
+                    indicator.className = 'badge bg-success';
+                    indicator.textContent = 'ONLINE';
+                    document.getElementById('market-data-status').textContent = data.market_data ? 'Running' : 'Stopped';
+                } else {
+                    indicator.className = 'badge bg-danger';
+                    indicator.textContent = 'OFFLINE';
+                }
+                document.getElementById('last-update-time').textContent = new Date().toLocaleString();
+                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+            });
+        
+        // Load accounts
+        fetch('/api/accounts')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('accounts-container');
+                if (data.accounts && data.accounts.length > 0) {
+                    let html = '<div class="row">';
+                    data.accounts.forEach(account => {
+                        const pnl = account.unrealized_pl + account.realized_pl;
+                        const pnlClass = pnl >= 0 ? 'text-success' : 'text-danger';
+                        const pnlPct = account.balance > 0 ? ((pnl / account.balance) * 100).toFixed(2) : '0.00';
+                        html += `
+                            <div class="col-md-4 mb-3">
+                                <div class="card">
+                                    <div class="card-header bg-primary text-white">
+                                        <strong>${account.name}</strong>
+                                    </div>
+                                    <div class="card-body">
+                                        <p><strong>Balance:</strong> $${account.balance.toFixed(2)}</p>
+                                        <p><strong>P&L:</strong> <span class="${pnlClass}">$${pnl.toFixed(2)} (${pnlPct}%)</span></p>
+                                        <p><strong>Unrealized:</strong> $${account.unrealized_pl.toFixed(2)}</p>
+                                        <p><strong>Realized:</strong> $${account.realized_pl.toFixed(2)}</p>
+                                        <p><strong>Open Trades:</strong> ${account.open_trade_count}</p>
+                                        <p><strong>Margin Used:</strong> $${account.margin_used.toFixed(2)}</p>
+                                        <p><strong>Margin Available:</strong> $${account.margin_available.toFixed(2)}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p class="text-muted">No accounts found</p>';
+                }
+            })
+            .catch(e => {
+                document.getElementById('accounts-container').innerHTML = '<p class="text-danger">Error loading accounts</p>';
+            });
+        
+        // Load performance metrics
+        fetch('/api/performance')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('performance-container');
+                if (data.performance && Object.keys(data.performance).length > 0) {
+                    let html = '<div class="row">';
+                    for (const [accountId, perf] of Object.entries(data.performance)) {
+                        html += `
+                            <div class="col-md-6 mb-3">
+                                <div class="card">
+                                    <div class="card-header bg-info text-white">
+                                        <strong>${perf.account_name}</strong>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                                                                 <p><strong>Total Trades:</strong> ${perf.total_trades}</p>
+                                                 <p><strong>Win Rate:</strong> <span class="${perf.win_rate >= 50 ? 'text-success' : 'text-danger'}">${Number(perf.win_rate || 0).toFixed(2)}%</span></p>
+                                                <p><strong>Wins:</strong> ${perf.win_count} | <strong>Losses:</strong> ${perf.loss_count}</p>
+                                                                                                 <p><strong>Total P&L:</strong> <span class="${perf.total_pnl >= 0 ? 'text-success' : 'text-danger'}">$${Number(perf.total_pnl || 0).toFixed(2)}</span></p>
+                                                 <p><strong>Total P&L %:</strong> <span class="${perf.total_pnl_pct >= 0 ? 'text-success' : 'text-danger'}">${Number(perf.total_pnl_pct || 0).toFixed(2)}%</span></p>
+                                                 <p><strong>Avg P&L:</strong> $${Number(perf.avg_pnl || 0).toFixed(2)}</p>
+                                             </div>
+                                             <div class="col-md-6">
+                                                 <p><strong>Profit Factor:</strong> <span class="${perf.profit_factor >= 1 ? 'text-success' : 'text-danger'}">${Number(perf.profit_factor || 0).toFixed(2)}</span></p>
+                                                 <p><strong>Expectancy:</strong> <span class="${perf.expectancy >= 0 ? 'text-success' : 'text-danger'}">$${Number(perf.expectancy || 0).toFixed(2)}</span></p>
+                                                 <p><strong>Sharpe Ratio:</strong> ${Number(perf.sharpe_ratio || 0).toFixed(2)}</p>
+                                                 <p><strong>Max Drawdown:</strong> <span class="text-danger">$${Number(perf.max_drawdown || 0).toFixed(2)}</span></p>
+                                                 <p><strong>Avg Win:</strong> <span class="text-success">$${Number(perf.avg_win || 0).toFixed(2)}</span></p>
+                                                 <p><strong>Avg Loss:</strong> <span class="text-danger">$${Number(perf.avg_loss || 0).toFixed(2)}</span></p>
+                                            </div>
+                                        </div>
+                                        ${Object.keys(perf.strategy_stats).length > 0 ? `
+                                            <hr>
+                                            <h6>Strategy Breakdown:</h6>
+                                                                                         ${Object.entries(perf.strategy_stats).map(([strategy, stats]) => `
+                                                 <p><strong>${strategy}:</strong> ${stats.total_trades} trades, ${Number(stats.win_rate || 0).toFixed(1)}% win rate, $${Number(stats.total_pnl || 0).toFixed(2)} P&L</p>
+                                             `).join('')}
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    html += '</div>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p class="text-muted">No performance data available yet. Performance metrics will appear after trades are executed.</p>';
+                }
+            })
+            .catch(e => {
+                console.error('Error loading performance:', e);
+                document.getElementById('performance-container').innerHTML = '<p class="text-muted">Performance data not available</p>';
+            });
+        
+        // Load AB Lane (Strategy Comparison)
+        fetch('/api/performance')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('ab-lane-container');
+                if (data.performance && Object.keys(data.performance).length >= 2) {
+                    const accounts = Object.entries(data.performance);
+                    const [accountA, accountB] = accounts.slice(0, 2);
+                    const perfA = accountA[1];
+                    const perfB = accountB[1];
+                    
+                    let html = `
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-6 border-end">
+                                        <h5 class="text-primary">Strategy A: ${perfA.account_name}</h5>
+                                        <div class="row">
+                                            <div class="col-6">
+                                                                                                 <p><strong>Win Rate:</strong> <span class="${perfA.win_rate >= perfB.win_rate ? 'text-success' : 'text-muted'}">${Number(perfA.win_rate || 0).toFixed(2)}%</span></p>
+                                                 <p><strong>Profit Factor:</strong> <span class="${perfA.profit_factor >= perfB.profit_factor ? 'text-success' : 'text-muted'}">${Number(perfA.profit_factor || 0).toFixed(2)}</span></p>
+                                                 <p><strong>Sharpe Ratio:</strong> <span class="${perfA.sharpe_ratio >= perfB.sharpe_ratio ? 'text-success' : 'text-muted'}">${Number(perfA.sharpe_ratio || 0).toFixed(2)}</span></p>
+                                             </div>
+                                             <div class="col-6">
+                                                 <p><strong>Total P&L:</strong> <span class="${perfA.total_pnl >= perfB.total_pnl ? 'text-success' : 'text-muted'}">$${Number(perfA.total_pnl || 0).toFixed(2)}</span></p>
+                                                 <p><strong>Total Trades:</strong> ${perfA.total_trades || 0}</p>
+                                                 <p><strong>Expectancy:</strong> <span class="${perfA.expectancy >= perfB.expectancy ? 'text-success' : 'text-muted'}">$${Number(perfA.expectancy || 0).toFixed(2)}</span></p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h5 class="text-success">Strategy B: ${perfB.account_name}</h5>
+                                        <div class="row">
+                                            <div class="col-6">
+                                                                                                 <p><strong>Win Rate:</strong> <span class="${perfB.win_rate >= perfA.win_rate ? 'text-success' : 'text-muted'}">${Number(perfB.win_rate || 0).toFixed(2)}%</span></p>
+                                                 <p><strong>Profit Factor:</strong> <span class="${perfB.profit_factor >= perfA.profit_factor ? 'text-success' : 'text-muted'}">${Number(perfB.profit_factor || 0).toFixed(2)}</span></p>
+                                                 <p><strong>Sharpe Ratio:</strong> <span class="${perfB.sharpe_ratio >= perfA.sharpe_ratio ? 'text-success' : 'text-muted'}">${Number(perfB.sharpe_ratio || 0).toFixed(2)}</span></p>
+                                             </div>
+                                             <div class="col-6">
+                                                 <p><strong>Total P&L:</strong> <span class="${perfB.total_pnl >= perfA.total_pnl ? 'text-success' : 'text-muted'}">$${Number(perfB.total_pnl || 0).toFixed(2)}</span></p>
+                                                 <p><strong>Total Trades:</strong> ${perfB.total_trades || 0}</p>
+                                                 <p><strong>Expectancy:</strong> <span class="${perfB.expectancy >= perfA.expectancy ? 'text-success' : 'text-muted'}">$${Number(perfB.expectancy || 0).toFixed(2)}</span></p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p class="text-muted">A/B comparison requires at least 2 accounts with performance data. Currently need more accounts or trades.</p>';
+                }
+            })
+            .catch(e => {
+                console.error('Error loading AB lane:', e);
+                document.getElementById('ab-lane-container').innerHTML = '<p class="text-muted">A/B comparison data not available</p>';
+            });
+        
+        // Load positions
+        fetch('/api/positions')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('positions-container');
+                if (data.positions && data.positions.length > 0) {
+                    let html = '<table class="table table-striped"><thead><tr><th>Account</th><th>Instrument</th><th>Long Units</th><th>Short Units</th><th>Unrealized P&L</th></tr></thead><tbody>';
+                    data.positions.forEach(pos => {
+                        const pnlClass = pos.unrealized_pl >= 0 ? 'text-success' : 'text-danger';
+                        html += `
+                            <tr>
+                                <td>${pos.account_id.substring(0, 15)}...</td>
+                                <td>${pos.instrument}</td>
+                                <td>${pos.long_units}</td>
+                                <td>${pos.short_units}</td>
+                                <td class="${pnlClass}">$${pos.unrealized_pl.toFixed(2)}</td>
+                            </tr>
+                        `;
+                    });
+                    html += '</tbody></table>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p class="text-muted">No open positions</p>';
+                }
+            })
+            .catch(e => {
+                document.getElementById('positions-container').innerHTML = '<p class="text-danger">Error loading positions</p>';
+            });
+        
+        // Load news
+        fetch('/api/news/upcoming')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('news-container');
+                if (data.enabled && data.events && data.events.length > 0) {
+                    let html = '<div class="list-group">';
+                    data.events.slice(0, 10).forEach(event => {
+                        const impactClass = event.impact === 'High' ? 'danger' : event.impact === 'Medium' ? 'warning' : 'info';
+                        html += `
+                            <div class="list-group-item">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">${event.title}</h6>
+                                    <span class="badge bg-${impactClass}">${event.impact}</span>
+                                </div>
+                                <p class="mb-1"><strong>${event.country}</strong> - ${event.currency}</p>
+                                <small>In ${event.minutes_until} minutes | Affects: ${event.impacted_instruments.join(', ') || 'N/A'}</small>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    container.innerHTML = html;
+                } else if (!data.enabled) {
+                    container.innerHTML = '<p class="text-muted">News feed not enabled or API keys not configured</p>';
+                } else {
+                    container.innerHTML = '<p class="text-muted">No upcoming high-impact news events</p>';
+                }
+            })
+            .catch(e => {
+                console.error('Error loading news:', e);
+                document.getElementById('news-container').innerHTML = '<p class="text-muted">News data not available</p>';
+            });
+        
+        // Load sentiment
+        fetch('/api/sentiment')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('sentiment-container');
+                if (data.enabled && data.sentiment && Object.keys(data.sentiment).length > 0) {
+                    const sent = data.sentiment;
+                    let html = '<div class="card">';
+                    html += '<div class="card-body">';
+                    if (sent.avg_score !== undefined) {
+                        const scoreClass = sent.avg_score > 0 ? 'success' : sent.avg_score < 0 ? 'danger' : 'secondary';
+                        html += `<p><strong>Overall Sentiment:</strong> <span class="badge bg-${scoreClass}">${sent.avg_score > 0 ? '+' : ''}${sent.avg_score.toFixed(2)}</span></p>`;
+                    }
+                    if (sent.entities) {
+                        html += '<h6>Currency Mentions:</h6><ul class="list-unstyled">';
+                        for (const [currency, count] of Object.entries(sent.entities)) {
+                            if (count > 0) {
+                                html += `<li>${currency}: ${count} mentions</li>`;
+                            }
+                        }
+                        html += '</ul>';
+                    }
+                    html += '</div></div>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p class="text-muted">Sentiment data not available</p>';
+                }
+            })
+            .catch(e => {
+                console.error('Error loading sentiment:', e);
+                document.getElementById('sentiment-container').innerHTML = '<p class="text-muted">Sentiment data not available</p>';
+            });
+    }
+</script>
+{% endblock %}

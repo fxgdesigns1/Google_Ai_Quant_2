@@ -1,0 +1,74 @@
+# Master Configuration File - Single Source of Truth
+# Trading System Configuration
+
+# OANDA Accounts (One per strategy for fault isolation)
+accounts:
+  - id: "101-004-30719775-001"
+    name: "Gold Scalping"
+    strategy: "gold_scalping"
+    instruments: ["XAU_USD"]
+    enabled: true
+    risk:
+      max_risk_per_trade: 0.01  # 1%
+      max_positions: 3
+      daily_trade_limit: 15
+      max_exposure_per_instrument_pct: 30
+      
+  - id: "101-004-30719775-002"
+    name: "GBP Momentum"
+    strategy: "gbp_usd_momentum"
+    instruments: ["GBP_USD"]
+    enabled: true
+    risk:
+      max_risk_per_trade: 0.015  # 1.5%
+      max_positions: 2
+      daily_trade_limit: 10
+      max_exposure_per_instrument_pct: 30
+      
+  - id: "101-004-30719775-003"
+    name: "Gold Momentum"
+    strategy: "gold_momentum"
+    instruments: ["XAU_USD"]
+    enabled: false  # Will enable after backtest validation
+    risk:
+      max_risk_per_trade: 0.015
+      max_positions: 2
+      daily_trade_limit: 10
+      max_exposure_per_instrument_pct: 30
+
+# Global Risk Settings
+global_risk:
+  circuit_breaker_loss_pct: 2.0  # Stop all trading if lose 2% in one day
+  max_total_positions: 20
+  max_positions_per_instrument: 3
+  max_correlated_pairs: 2
+  trading_sessions: ["london", "ny"]  # Only trade London/NY sessions
+  max_spread_pips: 3.0
+  min_signal_confidence: 0.7
+
+# News Integration
+news:
+  enabled: true
+  pause_before_high_impact: 30  # minutes before high-impact news
+  sentiment_threshold: 0.6
+  sources: ["alpha_vantage", "marketaux"]
+  update_interval_minutes: 15
+
+# Telegram Notifications
+telegram:
+  enabled: true
+  alerts: ["trades", "risks", "daily_summary", "errors"]
+
+# Dashboard Configuration
+dashboard:
+  host: "0.0.0.0"
+  port: 5000
+  debug: false
+  update_interval_seconds: 2
+
+# System Settings
+system:
+  data_update_interval_seconds: 5
+  position_check_interval_seconds: 60
+  backtest_required_win_rate: 0.55  # 55% minimum win rate to enable strategy
+  backtest_min_days: 14  # Minimum 2 weeks of backtest data

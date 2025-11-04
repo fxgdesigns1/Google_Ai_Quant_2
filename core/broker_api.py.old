@@ -1,0 +1,352 @@
+#!/usr/bin/env python3
+"""
+OANDA Broker API Client
+Single interface to OANDA API with connection management, rate limiting, and error handling
+"""
+
+import os
+import time
+import logging
+from datetime import datetime, timezone
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass
+import v20
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class Price:
+    """Market price data"""
+    instrument: str
+    bid: float
+    ask: float
+    timestamp: datetime
+    spread: float
+
+    @property
+    def mid(self) -> float:
+        return (self.bid + self.ask) / 2
+
+
+@dataclass
+class AccountInfo:
+    """Account information"""
+    account_id: str
+    balance: float
+    unrealized_pl: float
+    realized_pl: float
+    margin_used: float
+    margin_available: float
+    open_trade_count: int
+    open_position_count: int
+    currency: str
+
+
+@dataclass
+class Position:
+    """Open position"""
+    instrument: str
+    long_units: int
+    short_units: int
+    unrealized_pl: float
+    avg_price: Optional[float]
+
+
+@dataclass
+class Trade:
+    """Open trade"""
+    trade_id: str
+    instrument: str
+    units: int
+    side: str  # 'BUY' or 'SELL'
+    entry_price: float
+    current_price: float
+    unrealized_pl: float
+    stop_loss: Optional[float]
+    take_profit: Optional[float]
+    open_time: datetime
+
+
+class OandaBrokerAPI:
+    """Production OANDA API client with rate limiting and error handling"""
+
+    def __init__(self, api_key: Optional[str] = None, account_id: Optional[str] = None,
+                 environment: Optional[str] = None):
+        """Initialize OANDA client"""
+        self.api_key = api_key or os.getenv('OANDA_API_KEY')
+        self.environment = environment or os.getenv('OANDA_ENVIRONMENT', 'practice')
+        self.account_id = account_id
+
+        if not self.api_key:
+            raise ValueError("OANDA_API_KEY not found in environment variables")
+
+        # Set up API context
+        if self.environment == 'practice':
+            self.ctx = v20.Context(
+                'api-fxpractice.oanda.com',
+                443,
+                True,
+                application='ModularTradingSystem',
+                token=self.api_key
+            )
+        else:
+            self.ctx = v20.Context(
+                'api-fxtrade.oanda.com',
+                443,
+                True,
+                application='ModularTradingSystem',
+                token=self.api_key
+            )
+
+        # Rate limiting
+        self.last_request_time = 0
+        self.min_request_interval = 0.1  # 100ms between requests
+        self.max_retries = 3
+        self.retry_delay = 1.0
+
+        logger.info(f"✅ OANDA Broker API initialized for {self.environment} environment")
+        if self.account_id:
+            logger.info(f"📊 Account ID: {self.account_id}")
+
+    def _rate_limit(self):
+        """Enforce rate limiting"""
+        current_time = time.time()
+        time_since_last = current_time - self.last_request_time
+        if time_since_last < self.min_request_interval:
+            time.sleep(self.min_request_interval - time_since_last)
+        self.last_request_time = time.time()
+
+    def _parse_timestamp(self, timestamp_str: str) -> datetime:
+        """Parse OANDA ISO8601 timestamp"""
+        try:
+            # Handle nanoseconds by truncating to microseconds
+            if '.' in timestamp_str and 'Z' in timestamp_str:
+                parts = timestamp_str.replace('Z', '+00:00').split('.')
+                if len(parts) == 2:
+                    fractional = parts[1][:6]  # Truncate to 6 digits (microseconds)
+                    timestamp_str = f"{parts[0]}.{fractional}{parts[1][6:].replace('+00:00', '')}+00:00"
+            return datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        except Exception as e:
+            logger.error(f"Failed to parse timestamp {timestamp_str}: {e}")
+            return datetime.now(timezone.utc)
+
+    def _request_with_retry(self, func, *args, **kwargs):
+        """Execute API request with retry logic"""
+        for attempt in range(self.max_retries):
+            try:
+                self._rate_limit()
+                response = func(*args, **kwargs)
+                
+                if response.status >= 200 and response.status < 300:
+                    return response
+                elif response.status == 429:  # Rate limited
+                    wait_time = self.retry_delay * (2 ** attempt)
+                    logger.warning(f"Rate limited, waiting {wait_time}s before retry")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    logger.error(f"API error {response.status}: {response.body}")
+                    raise Exception(f"API error: {response.status}")
+                    
+            except Exception as e:
+                if attempt == self.max_retries - 1:
+                    logger.error(f"Request failed after {self.max_retries} attempts: {e}")
+                    raise
+                wait_time = self.retry_delay * (2 ** attempt)
+                logger.warning(f"Request failed, retrying in {wait_time}s: {e}")
+                time.sleep(wait_time)
+
+    def get_account_info(self, account_id: Optional[str] = None) -> AccountInfo:
+        """Get account information"""
+        acc_id = account_id or self.account_id
+        if not acc_id:
+            raise ValueError("Account ID required")
+
+        response = self._request_with_retry(
+            self.ctx.account.get,
+            acc_id
+        )
+
+        account = response.body.get('account', {})
+        
+        return AccountInfo(
+            account_id=account.get('id', acc_id),
+            balance=float(account.get('balance', 0)),
+            unrealized_pl=float(account.get('unrealizedPL', 0)),
+            realized_pl=float(account.get('pl', 0)),
+            margin_used=float(account.get('marginUsed', 0)),
+            margin_available=float(account.get('marginAvailable', 0)),
+            open_trade_count=int(account.get('openTradeCount', 0)),
+            open_position_count=int(account.get('openPositionCount', 0)),
+            currency=account.get('currency', 'USD')
+        )
+
+    def get_prices(self, instruments: List[str]) -> Dict[str, Price]:
+        """Get current prices for instruments"""
+        if not instruments:
+            return {}
+
+        instruments_str = ','.join(instruments)
+        acc_id = self.account_id or os.getenv('OANDA_ACCOUNT_ID')
+        
+        if not acc_id:
+            raise ValueError("Account ID required for pricing")
+
+        response = self._request_with_retry(
+            self.ctx.pricing.get,
+            acc_id,
+            instruments=instruments_str
+        )
+
+        prices = {}
+        for price_data in response.body.get('prices', []):
+            instrument = price_data.get('instrument')
+            bid = float(price_data.get('bids', [{}])[0].get('price', 0))
+            ask = float(price_data.get('asks', [{}])[0].get('price', 0))
+            timestamp_str = price_data.get('time', '')
+            
+            prices[instrument] = Price(
+                instrument=instrument,
+                bid=bid,
+                ask=ask,
+                timestamp=self._parse_timestamp(timestamp_str),
+                spread=ask - bid
+            )
+
+        return prices
+
+    def get_candles(self, instrument: str, count: int = 200, granularity: str = 'M5') -> List[Dict]:
+        """Get historical candles"""
+        acc_id = self.account_id or os.getenv('OANDA_ACCOUNT_ID')
+        
+        if not acc_id:
+            raise ValueError("Account ID required for candles")
+
+        response = self._request_with_retry(
+            self.ctx.instrument.candles,
+            instrument,
+            count=count,
+            granularity=granularity,
+            price='M'
+        )
+
+        candles = []
+        for candle_data in response.body.get('candles', []):
+            if candle_data.get('complete'):
+                mid = candle_data.get('mid', {})
+                candles.append({
+                    'time': self._parse_timestamp(candle_data.get('time', '')),
+                    'open': float(mid.get('o', 0)),
+                    'high': float(mid.get('h', 0)),
+                    'low': float(mid.get('l', 0)),
+                    'close': float(mid.get('c', 0)),
+                    'volume': int(candle_data.get('volume', 0))
+                })
+
+        return candles
+
+    def place_market_order(self, account_id: str, instrument: str, units: int,
+                          stop_loss: Optional[float] = None,
+                          take_profit: Optional[float] = None) -> Optional[str]:
+        """Place a market order"""
+        side = 'BUY' if units > 0 else 'SELL'
+        
+        order_request = {
+            'order': {
+                'type': 'MARKET',
+                'instrument': instrument,
+                'units': str(abs(units)),
+                'timeInForce': 'FOK'
+            }
+        }
+
+        if stop_loss:
+            order_request['order']['stopLossOnFill'] = {
+                'price': str(stop_loss),
+                'timeInForce': 'GTC'
+            }
+
+        if take_profit:
+            order_request['order']['takeProfitOnFill'] = {
+                'price': str(take_profit),
+                'timeInForce': 'GTC'
+            }
+
+        try:
+            response = self._request_with_retry(
+                self.ctx.order.create,
+                account_id,
+                order_request
+            )
+
+            order_response = response.body.get('orderFillTransaction') or response.body.get('orderCreateTransaction')
+            if order_response:
+                trade_id = order_response.get('id')
+                logger.info(f"✅ Order placed: {instrument} {side} {abs(units)} units, Trade ID: {trade_id}")
+                return str(trade_id)
+            else:
+                logger.error(f"Order placed but no trade ID returned")
+                return None
+
+        except Exception as e:
+            logger.error(f"❌ Failed to place order: {e}")
+            raise
+
+    def close_trade(self, account_id: str, trade_id: str) -> bool:
+        """Close an open trade"""
+        try:
+            response = self._request_with_retry(
+                self.ctx.trade.close,
+                account_id,
+                trade_id
+            )
+
+            if response.status == 200:
+                logger.info(f"✅ Trade closed: {trade_id}")
+                return True
+            return False
+
+        except Exception as e:
+            logger.error(f"❌ Failed to close trade {trade_id}: {e}")
+            return False
+
+    def get_open_trades(self, account_id: str) -> List[Trade]:
+        """Get all open trades"""
+        try:
+            response = self._request_with_retry(
+                self.ctx.trade.list_open,
+                account_id
+            )
+
+            trades = []
+            for trade_data in response.body.get('trades', []):
+                trades.append(Trade(
+                    trade_id=trade_data.get('id', ''),
+                    instrument=trade_data.get('instrument', ''),
+                    units=int(trade_data.get('currentUnits', 0)),
+                    side='BUY' if int(trade_data.get('currentUnits', 0)) > 0 else 'SELL',
+                    entry_price=float(trade_data.get('price', 0)),
+                    current_price=float(trade_data.get('currentPrice', 0)),
+                    unrealized_pl=float(trade_data.get('unrealizedPL', 0)),
+                    stop_loss=float(trade_data.get('stopLossOrder', {}).get('price', 0)) if trade_data.get('stopLossOrder') else None,
+                    take_profit=float(trade_data.get('takeProfitOrder', {}).get('price', 0)) if trade_data.get('takeProfitOrder') else None,
+                    open_time=self._parse_timestamp(trade_data.get('openTime', ''))
+                ))
+
+            return trades
+
+        except Exception as e:
+            logger.error(f"❌ Failed to get open trades: {e}")
+            return []
+
+    def is_connected(self) -> bool:
+        """Check if API connection is working"""
+        try:
+            acc_id = self.account_id or os.getenv('OANDA_ACCOUNT_ID')
+            if not acc_id:
+                return False
+            self.get_account_info(acc_id)
+            return True
+        except Exception:
+            return False
