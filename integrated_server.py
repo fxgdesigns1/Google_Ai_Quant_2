@@ -72,29 +72,32 @@ def initialize_system(config):
     environment = os.getenv('OANDA_ENVIRONMENT', 'practice')
     
     if not api_key:
-        raise ValueError("OANDA_API_KEY not found in environment")
-    
-    # Get first account ID for broker initialization
-    accounts = config.get('accounts', [])
-    if not accounts:
-        raise ValueError("No accounts configured in config.yaml")
-    
-    first_account_id = accounts[0]['id']
-    broker = OandaBroker(api_key=api_key, account_id=first_account_id, environment=environment)
+        logger.warning("⚠️ OANDA_API_KEY not found - dashboard will run in demo mode")
+        broker = None
+    else:
+        # Get first account ID for broker initialization
+        accounts = config.get('accounts', [])
+        if not accounts:
+            raise ValueError("No accounts configured in config.yaml")
+        
+        first_account_id = accounts[0]['id']
+        broker = OandaBroker(api_key=api_key, account_id=first_account_id, environment=environment)
     
     # Collect all instruments from all accounts
     all_instruments = set()
-    for account in accounts:
+    for account in config.get('accounts', []):
         if account.get('enabled', False):
             all_instruments.update(account.get('instruments', []))
     
-    # Initialize market data feed
-    update_interval = config.get('system', {}).get('data_update_interval_seconds', 5)
-    market_data = MarketDataFeed(
-        broker=broker,
-        instruments=list(all_instruments),
-        update_interval=update_interval
-    )
+    # Initialize market data feed (only if broker available)
+    market_data = None
+    if broker:
+        update_interval = config.get('system', {}).get('data_update_interval_seconds', 5)
+        market_data = MarketDataFeed(
+            broker=broker,
+            instruments=list(all_instruments),
+            update_interval=update_interval
+        )
     
     # Initialize Telegram alerts
     telegram_enabled = config.get('telegram', {}).get('enabled', False)
@@ -102,9 +105,7 @@ def initialize_system(config):
     if telegram_enabled:
         try:
             telegram_alerts = TelegramAlerts()
-            if telegram_alerts.enabled:
-                logger.info("✅ Telegram alerts initialized")
-            else:
+            if not telegram_alerts.enabled:
                 telegram_alerts = None
                 logger.warning("⚠️ Telegram alerts disabled (missing token/chat_id)")
         except Exception as e:
@@ -117,7 +118,6 @@ def initialize_system(config):
         news_aggregator = NewsAggregator(config)
         if news_aggregator.is_enabled():
             logger.info("✅ News aggregator initialized")
-            # Refresh calendar on startup
             news_aggregator.refresh_calendar()
         else:
             logger.warning("⚠️ News aggregator disabled (no API keys)")
@@ -158,77 +158,83 @@ def initialize_system(config):
     )
     risk_manager = RiskManager(limits=risk_limits, telegram_alerts=telegram_alerts, news_aggregator=news_aggregator)
     
-    # Initialize position manager
-    position_manager = PositionManager(
-        broker=broker,
-        risk_manager=risk_manager,
-        accounts=accounts
-    )
+    # Initialize position manager (only if broker available)
+    position_manager = None
+    if broker:
+        position_manager = PositionManager(
+            broker=broker,
+            risk_manager=risk_manager,
+            accounts=config.get('accounts', [])
+        )
     
-    # Initialize order executor with all integrations
-    order_executor = OrderExecutor(
-        broker=broker,
-        risk_manager=risk_manager,
-        telegram_alerts=telegram_alerts,
-        trade_logger=trade_logger,
-        position_manager=position_manager,
-        adaptive_learning=adaptive_learning
-    )
+    # Initialize order executor (only if broker available)
+    order_executor = None
+    if broker:
+        order_executor = OrderExecutor(
+            broker=broker,
+            risk_manager=risk_manager,
+            telegram_alerts=telegram_alerts,
+            trade_logger=trade_logger,
+            position_manager=position_manager,
+            adaptive_learning=adaptive_learning
+        )
     
-    # Load strategies based on config
-    strategy_map = {
-        'gold_momentum': GoldMomentumStrategy,
-        'gold_scalping': GoldScalpingStrategy,
-        'gbp_usd_momentum': GbpUsdMomentumStrategy
-    }
-    
+    # Load strategies (only if broker available)
     strategies = []
-    for account in accounts:
-        if not account.get('enabled', False):
-            continue
-        
-        strategy_name = account.get('strategy')
-        if not strategy_name:
-            continue
-        
-        strategy_class = strategy_map.get(strategy_name)
-        if not strategy_class:
-            logger.warning(f"⚠️ Unknown strategy: {strategy_name}")
-            continue
-        
-        # Create strategy config from account config
-        strategy_config = {
-            'name': account.get('name', strategy_name),
-            'instruments': account.get('instruments', []),
-            'enabled': account.get('enabled', False),
-            **account.get('strategy_params', {})  # Allow strategy-specific params
+    if broker:
+        strategy_map = {
+            'gold_momentum': GoldMomentumStrategy,
+            'gold_scalping': GoldScalpingStrategy,
+            'gbp_usd_momentum': GbpUsdMomentumStrategy
         }
         
-        try:
-            strategy = strategy_class(strategy_config)
-            strategies.append(strategy)
-            logger.info(f"✅ Loaded strategy: {strategy_name} for account {account.get('name')}")
-        except Exception as e:
-            logger.error(f"❌ Failed to load strategy {strategy_name}: {e}", exc_info=True)
+        for account in config.get('accounts', []):
+            if not account.get('enabled', False):
+                continue
+            
+            strategy_name = account.get('strategy')
+            if not strategy_name:
+                continue
+            
+            strategy_class = strategy_map.get(strategy_name)
+            if not strategy_class:
+                logger.warning(f"⚠️ Unknown strategy: {strategy_name}")
+                continue
+            
+            strategy_config = {
+                'name': account.get('name', strategy_name),
+                'instruments': account.get('instruments', []),
+                'enabled': account.get('enabled', False),
+                **account.get('strategy_params', {})
+            }
+            
+            try:
+                strategy = strategy_class(strategy_config)
+                strategies.append(strategy)
+                logger.info(f"✅ Loaded strategy: {strategy_name} for account {account.get('name')}")
+            except Exception as e:
+                logger.error(f"❌ Failed to load strategy {strategy_name}: {e}", exc_info=True)
     
-    # Initialize strategy coordinator
-    strategy_coordinator = StrategyCoordinator(
-        strategies=strategies,
-        market_data=market_data,
-        order_executor=order_executor,
-        risk_manager=risk_manager,
-        config=config
-    )
+    # Initialize strategy coordinator (only if broker and strategies available)
+    strategy_coordinator = None
+    if broker and strategies and market_data and order_executor:
+        strategy_coordinator = StrategyCoordinator(
+            strategies=strategies,
+            market_data=market_data,
+            order_executor=order_executor,
+            risk_manager=risk_manager,
+            config=config
+        )
     
-    # Initialize trade closer (monitors closed trades for adaptive learning)
+    # Initialize trade closer
     trade_closer = None
-    if adaptive_learning:
+    if broker and adaptive_learning:
         try:
             trade_closer = TradeCloser(
                 broker=broker,
                 trade_logger=trade_logger,
                 adaptive_learning=adaptive_learning,
-                accounts=accounts
+                accounts=config.get('accounts', [])
             )
             logger.info("✅ Trade closer initialized")
         except Exception as e:
@@ -257,26 +263,25 @@ def start_trading_system(system):
     """Start all trading system components"""
     logger.info("📈 Starting trading system components...")
     
-    # Start market data feed
-    system['market_data'].start()
-    logger.info("✅ Market data feed started")
+    if system['market_data']:
+        system['market_data'].start()
+        logger.info("✅ Market data feed started")
     
-    # Start position manager
-    position_check_interval = system['config'].get('system', {}).get('position_check_interval_seconds', 60)
-    system['position_manager'].start(check_interval=position_check_interval)
-    logger.info("✅ Position manager started")
+    if system['position_manager']:
+        position_check_interval = system['config'].get('system', {}).get('position_check_interval_seconds', 60)
+        system['position_manager'].start(check_interval=position_check_interval)
+        logger.info("✅ Position manager started")
     
-    # Start trade closer (for adaptive learning)
     if system['trade_closer']:
         system['trade_closer'].start(check_interval=60)
         logger.info("✅ Trade closer started")
     
-    # Start strategy coordinator
-    system['strategy_coordinator'].start()
-    logger.info("✅ Strategy coordinator started")
+    if system['strategy_coordinator']:
+        system['strategy_coordinator'].start()
+        logger.info("✅ Strategy coordinator started")
     
     # Send morning briefing if Telegram is enabled
-    if system['telegram_alerts'] and system['telegram_alerts'].enabled:
+    if system['telegram_alerts'] and system['telegram_alerts'].enabled and system['broker']:
         try:
             accounts_info = []
             for account in system['config'].get('accounts', []):
@@ -355,16 +360,20 @@ def main():
         set_system_components(system_components)
         logger.info("✅ Dashboard connected to trading system")
         
-        # Start trading system in background thread
-        trading_thread = threading.Thread(target=start_trading_system, args=(system,), daemon=True)
-        trading_thread.start()
+        # Start trading system in background thread (if broker available)
+        if system['broker']:
+            trading_thread = threading.Thread(target=start_trading_system, args=(system,), daemon=True)
+            trading_thread.start()
+        else:
+            logger.info("⚠️ Running in demo mode (no API key) - dashboard only")
         
         # Get dashboard config
         dashboard_host = config.get('dashboard', {}).get('host', os.getenv('DASHBOARD_HOST', '0.0.0.0'))
         dashboard_port = config.get('dashboard', {}).get('port', int(os.getenv('DASHBOARD_PORT', 5000)))
         
         logger.info("=" * 60)
-        logger.info(f"✅ Trading system is running")
+        if system['broker']:
+            logger.info(f"✅ Trading system is running")
         logger.info(f"✅ Dashboard available at: http://{dashboard_host}:{dashboard_port}")
         logger.info("=" * 60)
         logger.info("Press Ctrl+C to stop")

@@ -482,11 +482,26 @@ def api_insights():
                     try:
                         price_data = market_data.get_current_price(instrument)
                         if price_data:
+                            # Try to get trend from indicators
+                            trend = 'NEUTRAL'
+                            try:
+                                closes = market_data.get_close_prices(instrument, 50)
+                                if len(closes) >= 21:
+                                    ema_fast = market_data.calculate_ema(instrument, 8)
+                                    ema_slow = market_data.calculate_ema(instrument, 21)
+                                    if ema_fast and ema_slow:
+                                        if ema_fast > ema_slow:
+                                            trend = 'BULLISH'
+                                        elif ema_fast < ema_slow:
+                                            trend = 'BEARISH'
+                            except:
+                                pass
+                            
                             market_conditions.append({
                                 'instrument': instrument,
                                 'price': price_data.bid,
                                 'spread': price_data.spread,
-                                'trend': 'NEUTRAL'  # Simplified for now
+                                'trend': trend
                             })
                     except Exception as e:
                         logger.debug(f"Error analyzing {instrument}: {e}")
