@@ -129,13 +129,30 @@
                 if (data.status === 'online') {
                     indicator.className = 'badge bg-success';
                     indicator.textContent = 'ONLINE';
-                    document.getElementById('market-data-status').textContent = data.market_data ? 'Running' : 'Stopped';
+                    const marketDataStatus = document.getElementById('market-data-status');
+                    if (marketDataStatus) {
+                        marketDataStatus.textContent = data.market_data ? 'Running' : 'Stopped';
+                    }
+                    if (!data.system_connected) {
+                        indicator.className = 'badge bg-warning';
+                        indicator.textContent = 'LIMITED MODE';
+                    }
                 } else {
                     indicator.className = 'badge bg-danger';
                     indicator.textContent = 'OFFLINE';
                 }
-                document.getElementById('last-update-time').textContent = new Date().toLocaleString();
-                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+                const lastUpdateTime = document.getElementById('last-update-time');
+                const lastUpdate = document.getElementById('last-update');
+                if (lastUpdateTime) lastUpdateTime.textContent = new Date().toLocaleString();
+                if (lastUpdate) lastUpdate.textContent = new Date().toLocaleTimeString();
+            })
+            .catch(e => {
+                console.error('Error loading status:', e);
+                const indicator = document.getElementById('status-indicator');
+                if (indicator) {
+                    indicator.className = 'badge bg-danger';
+                    indicator.textContent = 'ERROR';
+                }
             });
         
         // Load accounts
@@ -146,9 +163,10 @@
                 if (data.accounts && data.accounts.length > 0) {
                     let html = '<div class="row">';
                     data.accounts.forEach(account => {
-                        const pnl = account.unrealized_pl + account.realized_pl;
+                        const pnl = (account.unrealized_pl || 0) + (account.realized_pl || 0);
                         const pnlClass = pnl >= 0 ? 'text-success' : 'text-danger';
-                        const pnlPct = account.balance > 0 ? ((pnl / account.balance) * 100).toFixed(2) : '0.00';
+                        const balance = account.balance || 0;
+                        const pnlPct = balance > 0 ? ((pnl / balance) * 100).toFixed(2) : '0.00';
                         html += `
                             <div class="col-md-4 mb-3">
                                 <div class="card">
@@ -156,13 +174,13 @@
                                         <strong>${account.name}</strong>
                                     </div>
                                     <div class="card-body">
-                                        <p><strong>Balance:</strong> $${account.balance.toFixed(2)}</p>
+                                        <p><strong>Balance:</strong> $${(balance || 0).toFixed(2)}</p>
                                         <p><strong>P&L:</strong> <span class="${pnlClass}">$${pnl.toFixed(2)} (${pnlPct}%)</span></p>
-                                        <p><strong>Unrealized:</strong> $${account.unrealized_pl.toFixed(2)}</p>
-                                        <p><strong>Realized:</strong> $${account.realized_pl.toFixed(2)}</p>
-                                        <p><strong>Open Trades:</strong> ${account.open_trade_count}</p>
-                                        <p><strong>Margin Used:</strong> $${account.margin_used.toFixed(2)}</p>
-                                        <p><strong>Margin Available:</strong> $${account.margin_available.toFixed(2)}</p>
+                                        <p><strong>Unrealized:</strong> $${(account.unrealized_pl || 0).toFixed(2)}</p>
+                                        <p><strong>Realized:</strong> $${(account.realized_pl || 0).toFixed(2)}</p>
+                                        <p><strong>Open Trades:</strong> ${account.open_trade_count || 0}</p>
+                                        <p><strong>Margin Used:</strong> $${(account.margin_used || 0).toFixed(2)}</p>
+                                        <p><strong>Margin Available:</strong> $${(account.margin_available || 0).toFixed(2)}</p>
                                     </div>
                                 </div>
                             </div>

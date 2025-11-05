@@ -63,10 +63,16 @@ def settings():
 def api_status():
     """Get system status"""
     try:
+        market_data_running = False
+        if system_components and system_components.get('market_data'):
+            market_data = system_components.get('market_data')
+            market_data_running = getattr(market_data, 'running', False)
+        
         return jsonify({
             'status': 'online',
-            'market_data': system_components.get('market_data').running if system_components and system_components.get('market_data') else False,
-            'timestamp': str(Path(__file__).stat().st_mtime)
+            'market_data': market_data_running,
+            'system_connected': system_components is not None,
+            'timestamp': datetime.utcnow().isoformat()
         })
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -187,12 +193,16 @@ def api_positions():
 def api_strategies():
     """Get strategy status"""
     try:
+        if not system_components:
+            return jsonify({'strategies': {}})
+        
         coordinator = system_components.get('strategy_coordinator')
         if coordinator:
             return jsonify({'strategies': coordinator.get_strategy_status()})
         return jsonify({'strategies': {}})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error in api_strategies: {e}", exc_info=True)
+        return jsonify({'error': str(e), 'strategies': {}}), 500
 
 
 @app.route('/api/performance')
@@ -354,6 +364,9 @@ def api_sentiment():
 def enable_strategy(strategy_name):
     """Enable a strategy"""
     try:
+        if not system_components:
+            return jsonify({'error': 'System not connected'}), 503
+        
         coordinator = system_components.get('strategy_coordinator')
         if coordinator:
             for strategy in coordinator.strategies:
@@ -362,6 +375,7 @@ def enable_strategy(strategy_name):
                     return jsonify({'success': True})
         return jsonify({'error': 'Strategy not found'}), 404
     except Exception as e:
+        logger.error(f"Error enabling strategy: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 
@@ -369,6 +383,9 @@ def enable_strategy(strategy_name):
 def disable_strategy(strategy_name):
     """Disable a strategy"""
     try:
+        if not system_components:
+            return jsonify({'error': 'System not connected'}), 503
+        
         coordinator = system_components.get('strategy_coordinator')
         if coordinator:
             for strategy in coordinator.strategies:
@@ -377,13 +394,45 @@ def disable_strategy(strategy_name):
                     return jsonify({'success': True})
         return jsonify({'error': 'Strategy not found'}), 404
     except Exception as e:
+        logger.error(f"Error disabling strategy: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/market-data')
+def api_market_data():
+    """Get current market data for all instruments"""
+    try:
+        if not system_components:
+            return jsonify({'prices': {}})
+        
+        market_data = system_components.get('market_data')
+        if not market_data:
+            return jsonify({'prices': {}})
+        
+        prices_data = {}
+        for instrument in market_data.instruments:
+            price = market_data.get_current_price(instrument)
+            if price:
+                prices_data[instrument] = {
+                    'bid': price.bid,
+                    'ask': price.ask,
+                    'spread': price.spread,
+                    'timestamp': price.timestamp.isoformat() if hasattr(price.timestamp, 'isoformat') else str(price.timestamp)
+                }
+        
+        return jsonify({'prices': prices_data})
+    except Exception as e:
+        logger.error(f"Error getting market data: {e}", exc_info=True)
+        return jsonify({'error': str(e), 'prices': {}}), 500
 
 
 @app.route('/api/news/events')
 def api_news_events():
     """Get upcoming news events"""
     try:
+        if not system_components:
+            return jsonify({'events': [], 'enabled': False})
+        
         news_aggregator = system_components.get('news_aggregator')
         if not news_aggregator or not news_aggregator.is_enabled():
             return jsonify({'events': [], 'enabled': False})
@@ -410,14 +459,17 @@ def api_news_events():
             'last_refresh': news_aggregator.last_refresh.isoformat() if news_aggregator.last_refresh else None
         })
     except Exception as e:
-        logger.error(f"Error getting news events: {e}")
-        return jsonify({'events': [], 'error': str(e)}), 500
+        logger.error(f"Error getting news events: {e}", exc_info=True)
+        return jsonify({'events': [], 'error': str(e), 'enabled': False}), 500
 
 
 @app.route('/api/news/upcoming')
 def api_news_upcoming():
     """Get upcoming high-impact news events"""
     try:
+        if not system_components:
+            return jsonify({'events': [], 'enabled': False})
+        
         news_aggregator = system_components.get('news_aggregator')
         if not news_aggregator or not news_aggregator.is_enabled():
             return jsonify({'events': [], 'enabled': False})
@@ -425,7 +477,6 @@ def api_news_upcoming():
         upcoming = news_aggregator.get_upcoming_high_impact()
         events_data = []
         for event in upcoming:
-            from datetime import datetime
             minutes_until = (event.time_utc - datetime.utcnow()).total_seconds() / 60
             events_data.append({
                 'time_utc': event.time_utc.isoformat(),
@@ -443,21 +494,115 @@ def api_news_upcoming():
             'pause_before_minutes': news_aggregator.pause_before_high_impact
         })
     except Exception as e:
-        logger.error(f"Error getting upcoming news: {e}")
-        return jsonify({'events': [], 'error': str(e)}), 500
+        logger.error(f"Error getting upcoming news: {e}", exc_info=True)
+        return jsonify({'events': [], 'error': str(e), 'enabled': False}), 500
 
 
 @socketio.on('connect')
 def handle_connect():
     """Handle WebSocket connection"""
     logger.info('Client connected')
-    emit('status', {'message': 'Connected to trading system'})
+    emit('status', {'message': 'Connected to trading system', 'system_connected': system_components is not None})
 
 
 @socketio.on('disconnect')
 def handle_disconnect():
     """Handle WebSocket disconnection"""
     logger.info('Client disconnected')
+
+
+def emit_market_update():
+    """Emit market data update via WebSocket"""
+    try:
+        if not system_components:
+            return
+        
+        market_data = system_components.get('market_data')
+        if not market_data:
+            return
+        
+        prices_data = {}
+        for instrument in market_data.instruments:
+            price = market_data.get_current_price(instrument)
+            if price:
+                prices_data[instrument] = {
+                    'bid': price.bid,
+                    'ask': price.ask,
+                    'spread': price.spread,
+                    'timestamp': price.timestamp.isoformat() if hasattr(price.timestamp, 'isoformat') else str(price.timestamp)
+                }
+        
+        socketio.emit('market_update', {'prices': prices_data})
+    except Exception as e:
+        logger.error(f"Error emitting market update: {e}")
+
+
+def emit_position_update():
+    """Emit position update via WebSocket"""
+    try:
+        if not system_components:
+            return
+        
+        broker = system_components.get('broker')
+        config = system_components.get('config')
+        if not broker or not config:
+            return
+        
+        all_positions = []
+        for account_config in config.get('accounts', []):
+            try:
+                positions = broker.get_open_positions(account_config['id'])
+                for instrument, position in positions.items():
+                    all_positions.append({
+                        'account_id': account_config['id'],
+                        'instrument': instrument,
+                        'long_units': position.long_units,
+                        'short_units': position.short_units,
+                        'unrealized_pl': position.unrealized_pl,
+                        'long_avg_price': position.long_avg_price,
+                        'short_avg_price': position.short_avg_price
+                    })
+            except Exception as e:
+                logger.debug(f"Error getting positions for {account_config['id']}: {e}")
+        
+        socketio.emit('position_update', {'positions': all_positions})
+    except Exception as e:
+        logger.error(f"Error emitting position update: {e}")
+
+
+# Background thread to emit updates periodically
+import threading
+_update_thread = None
+_update_thread_running = False
+
+
+def start_update_thread():
+    """Start background thread for WebSocket updates"""
+    global _update_thread, _update_thread_running
+    
+    if _update_thread_running:
+        return
+    
+    _update_thread_running = True
+    
+    def update_loop():
+        while _update_thread_running:
+            try:
+                emit_market_update()
+                emit_position_update()
+                import time
+                time.sleep(5)  # Update every 5 seconds
+            except Exception as e:
+                logger.error(f"Error in update loop: {e}")
+                import time
+                time.sleep(10)
+    
+    _update_thread = threading.Thread(target=update_loop, daemon=True)
+    _update_thread.start()
+
+
+# Start update thread when module loads
+start_update_thread()
 
 
 def set_system_components(components):
