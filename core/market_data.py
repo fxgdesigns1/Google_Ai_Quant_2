@@ -68,15 +68,23 @@ class MarketDataFeed:
         
         for instrument in self.instruments:
             try:
-                # Fetch last 50 M15 candles from OANDA
+                # Fetch more candles to ensure we have enough data for all strategies
+                # Strategies need different amounts:
+                # - Gold Scalping: 20-50 bars
+                # - GBP Momentum: 50 bars
+                # - Gold Momentum: 100 bars
+                # Fetch 150 M15 candles (about 1.5 days) to cover all strategies
                 historical_candles = self.broker.get_historical_candles(
                     instrument=instrument,
                     granularity='M15',
-                    count=50,
+                    count=150,  # Increased from 50 to 150 for better coverage
                     account_id=account_id
                 )
                 
                 if historical_candles:
+                    # Sort by timestamp (oldest first) to maintain chronological order
+                    historical_candles.sort(key=lambda x: x.time)
+                    
                     # Convert HistoricalCandle to PriceBar and add to history
                     for hc in historical_candles:
                         price_bar = PriceBar(
@@ -89,7 +97,7 @@ class MarketDataFeed:
                         )
                         self.price_history[instrument].append(price_bar)
                     
-                    logger.info(f"✅ Pre-filled {len(historical_candles)} candles for {instrument}")
+                    logger.info(f"✅ Pre-filled {len(historical_candles)} candles for {instrument} (covers ~{len(historical_candles)*15/60:.1f} hours)")
                 else:
                     logger.warning(f"⚠️ No historical candles fetched for {instrument}")
                     
