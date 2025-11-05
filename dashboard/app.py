@@ -187,12 +187,15 @@ def api_positions():
 def api_strategies():
     """Get strategy status"""
     try:
-        coordinator = system_components.get('strategy_coordinator')
+        coordinator = None
+        if system_components:
+            coordinator = system_components.get('strategy_coordinator')
         if coordinator:
             return jsonify({'strategies': coordinator.get_strategy_status()})
         return jsonify({'strategies': {}})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error getting strategies: {e}", exc_info=True)
+        return jsonify({'error': str(e), 'strategies': {}}), 500
 
 
 @app.route('/api/performance')
@@ -354,14 +357,17 @@ def api_sentiment():
 def enable_strategy(strategy_name):
     """Enable a strategy"""
     try:
-        coordinator = system_components.get('strategy_coordinator')
+        coordinator = None
+        if system_components:
+            coordinator = system_components.get('strategy_coordinator')
         if coordinator:
             for strategy in coordinator.strategies:
                 if strategy.get_name() == strategy_name:
                     strategy.enable()
                     return jsonify({'success': True})
-        return jsonify({'error': 'Strategy not found'}), 404
+        return jsonify({'error': 'Strategy not found or system not initialized'}), 404
     except Exception as e:
+        logger.error(f"Error enabling strategy: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 
@@ -369,14 +375,17 @@ def enable_strategy(strategy_name):
 def disable_strategy(strategy_name):
     """Disable a strategy"""
     try:
-        coordinator = system_components.get('strategy_coordinator')
+        coordinator = None
+        if system_components:
+            coordinator = system_components.get('strategy_coordinator')
         if coordinator:
             for strategy in coordinator.strategies:
                 if strategy.get_name() == strategy_name:
                     strategy.disable()
                     return jsonify({'success': True})
-        return jsonify({'error': 'Strategy not found'}), 404
+        return jsonify({'error': 'Strategy not found or system not initialized'}), 404
     except Exception as e:
+        logger.error(f"Error disabling strategy: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 
@@ -384,7 +393,9 @@ def disable_strategy(strategy_name):
 def api_news_events():
     """Get upcoming news events"""
     try:
-        news_aggregator = system_components.get('news_aggregator')
+        news_aggregator = None
+        if system_components:
+            news_aggregator = system_components.get('news_aggregator')
         if not news_aggregator or not news_aggregator.is_enabled():
             return jsonify({'events': [], 'enabled': False})
         
@@ -410,15 +421,17 @@ def api_news_events():
             'last_refresh': news_aggregator.last_refresh.isoformat() if news_aggregator.last_refresh else None
         })
     except Exception as e:
-        logger.error(f"Error getting news events: {e}")
-        return jsonify({'events': [], 'error': str(e)}), 500
+        logger.error(f"Error getting news events: {e}", exc_info=True)
+        return jsonify({'events': [], 'error': str(e), 'enabled': False}), 500
 
 
 @app.route('/api/news/upcoming')
 def api_news_upcoming():
     """Get upcoming high-impact news events"""
     try:
-        news_aggregator = system_components.get('news_aggregator')
+        news_aggregator = None
+        if system_components:
+            news_aggregator = system_components.get('news_aggregator')
         if not news_aggregator or not news_aggregator.is_enabled():
             return jsonify({'events': [], 'enabled': False})
         
@@ -445,6 +458,33 @@ def api_news_upcoming():
     except Exception as e:
         logger.error(f"Error getting upcoming news: {e}")
         return jsonify({'events': [], 'error': str(e)}), 500
+
+
+@app.route('/api/recent-trades')
+def api_recent_trades():
+    """Get recent closed trades"""
+    try:
+        db_path = Path(__file__).parent.parent / 'data' / 'trades.db'
+        if not db_path.exists():
+            return jsonify({'trades': []})
+        
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT * FROM trades 
+            WHERE status = 'CLOSED'
+            ORDER BY exit_time DESC
+            LIMIT 100
+        ''')
+        trades = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        
+        return jsonify({'trades': trades})
+    except Exception as e:
+        logger.error(f"Error getting recent trades: {e}", exc_info=True)
+        return jsonify({'trades': [], 'error': str(e)}), 500
 
 
 @socketio.on('connect')

@@ -6,7 +6,182 @@
 <div class="row mb-4">
     <div class="col-12">
         <h1>Performance Analytics</h1>
-        <p class="text-muted">Coming soon - performance charts and statistics</p>
     </div>
 </div>
+
+<!-- Performance Summary -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div id="performance-summary">
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Trades -->
+<div class="row mb-4">
+    <div class="col-12">
+        <h3>Recent Closed Trades</h3>
+        <div id="recent-trades-container">
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Strategy Performance Breakdown -->
+<div class="row mb-4">
+    <div class="col-12">
+        <h3>Strategy Performance Breakdown</h3>
+        <div id="strategy-breakdown-container">
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        loadPerformance();
+        setInterval(loadPerformance, 30000); // Refresh every 30 seconds
+    });
+    
+    function loadPerformance() {
+        // Load performance summary
+        fetch('/api/performance')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('performance-summary');
+                if (data.performance && Object.keys(data.performance).length > 0) {
+                    let html = '<div class="row">';
+                    for (const [accountId, perf] of Object.entries(data.performance)) {
+                        html += `
+                            <div class="col-md-6 mb-3">
+                                <div class="card">
+                                    <div class="card-header bg-info text-white">
+                                        <strong>${perf.account_name}</strong>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <h5>Key Metrics</h5>
+                                                <p><strong>Total Trades:</strong> ${perf.total_trades || 0}</p>
+                                                <p><strong>Win Rate:</strong> <span class="${perf.win_rate >= 50 ? 'text-success' : 'text-danger'}">${Number(perf.win_rate || 0).toFixed(2)}%</span></p>
+                                                <p><strong>Wins:</strong> ${perf.win_count || 0} | <strong>Losses:</strong> ${perf.loss_count || 0}</p>
+                                                <p><strong>Total P&L:</strong> <span class="${perf.total_pnl >= 0 ? 'text-success' : 'text-danger'}">$${Number(perf.total_pnl || 0).toFixed(2)}</span></p>
+                                                <p><strong>Total P&L %:</strong> <span class="${perf.total_pnl_pct >= 0 ? 'text-success' : 'text-danger'}">${Number(perf.total_pnl_pct || 0).toFixed(2)}%</span></p>
+                                                <p><strong>Avg P&L:</strong> $${Number(perf.avg_pnl || 0).toFixed(2)}</p>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <h5>Risk Metrics</h5>
+                                                <p><strong>Profit Factor:</strong> <span class="${perf.profit_factor >= 1 ? 'text-success' : 'text-danger'}">${Number(perf.profit_factor || 0).toFixed(2)}</span></p>
+                                                <p><strong>Expectancy:</strong> <span class="${perf.expectancy >= 0 ? 'text-success' : 'text-danger'}">$${Number(perf.expectancy || 0).toFixed(2)}</span></p>
+                                                <p><strong>Sharpe Ratio:</strong> ${Number(perf.sharpe_ratio || 0).toFixed(2)}</p>
+                                                <p><strong>Max Drawdown:</strong> <span class="text-danger">$${Number(perf.max_drawdown || 0).toFixed(2)}</span></p>
+                                                <p><strong>Avg Win:</strong> <span class="text-success">$${Number(perf.avg_win || 0).toFixed(2)}</span></p>
+                                                <p><strong>Avg Loss:</strong> <span class="text-danger">$${Number(perf.avg_loss || 0).toFixed(2)}</span></p>
+                                            </div>
+                                        </div>
+                                        ${Object.keys(perf.strategy_stats || {}).length > 0 ? `
+                                            <hr>
+                                            <h6>Strategy Breakdown:</h6>
+                                            ${Object.entries(perf.strategy_stats).map(([strategy, stats]) => `
+                                                <div class="mb-2">
+                                                    <strong>${strategy}:</strong> 
+                                                    ${stats.total_trades || 0} trades, 
+                                                    <span class="${stats.win_rate >= 50 ? 'text-success' : 'text-danger'}">${Number(stats.win_rate || 0).toFixed(1)}%</span> win rate, 
+                                                    <span class="${stats.total_pnl >= 0 ? 'text-success' : 'text-danger'}">$${Number(stats.total_pnl || 0).toFixed(2)}</span> P&L
+                                                </div>
+                                            `).join('')}
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    html += '</div>';
+                    container.innerHTML = html;
+                    
+                    // Load strategy breakdown
+                    const breakdownContainer = document.getElementById('strategy-breakdown-container');
+                    if (data.performance && Object.keys(data.performance).length > 0) {
+                        let breakdownHtml = '<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Strategy</th><th>Trades</th><th>Win Rate</th><th>Total P&L</th><th>Avg P&L</th><th>Profit Factor</th></tr></thead><tbody>';
+                        for (const [accountId, perf] of Object.entries(data.performance)) {
+                            if (perf.strategy_stats) {
+                                for (const [strategy, stats] of Object.entries(perf.strategy_stats)) {
+                                    breakdownHtml += `
+                                        <tr>
+                                            <td><strong>${strategy}</strong> (${perf.account_name})</td>
+                                            <td>${stats.total_trades || 0}</td>
+                                            <td><span class="${stats.win_rate >= 50 ? 'text-success' : 'text-danger'}">${Number(stats.win_rate || 0).toFixed(2)}%</span></td>
+                                            <td class="${stats.total_pnl >= 0 ? 'text-success' : 'text-danger'}">$${Number(stats.total_pnl || 0).toFixed(2)}</td>
+                                            <td>$${Number((stats.total_pnl || 0) / (stats.total_trades || 1)).toFixed(2)}</td>
+                                            <td>${Number((stats.win_count || 0) / (stats.total_trades - stats.win_count || 1)).toFixed(2)}</td>
+                                        </tr>
+                                    `;
+                                }
+                            }
+                        }
+                        breakdownHtml += '</tbody></table></div>';
+                        breakdownContainer.innerHTML = breakdownHtml;
+                    } else {
+                        breakdownContainer.innerHTML = '<p class="text-muted">No strategy breakdown available</p>';
+                    }
+                } else {
+                    container.innerHTML = '<p class="text-muted">No performance data available yet. Performance metrics will appear after trades are executed.</p>';
+                    document.getElementById('strategy-breakdown-container').innerHTML = '<p class="text-muted">No strategy breakdown available</p>';
+                }
+            })
+            .catch(e => {
+                console.error('Error loading performance:', e);
+                document.getElementById('performance-summary').innerHTML = '<p class="text-danger">Error loading performance data</p>';
+            });
+        
+        // Load recent trades
+        fetch('/api/recent-trades')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('recent-trades-container');
+                if (data.trades && data.trades.length > 0) {
+                    let html = '<div class="table-responsive"><table class="table table-striped"><thead><tr><th>Time</th><th>Account</th><th>Strategy</th><th>Instrument</th><th>Side</th><th>Entry</th><th>Exit</th><th>P&L</th><th>P&L %</th></tr></thead><tbody>';
+                    data.trades.slice(0, 50).forEach(trade => {
+                        const pnlClass = trade.pnl >= 0 ? 'text-success' : 'text-danger';
+                        html += `
+                            <tr>
+                                <td>${new Date(trade.exit_time).toLocaleString()}</td>
+                                <td>${trade.account_id.substring(0, 10)}...</td>
+                                <td>${trade.strategy_name || 'N/A'}</td>
+                                <td><strong>${trade.instrument}</strong></td>
+                                <td>${trade.side}</td>
+                                <td>${Number(trade.entry_price || 0).toFixed(5)}</td>
+                                <td>${Number(trade.exit_price || 0).toFixed(5)}</td>
+                                <td class="${pnlClass}"><strong>$${Number(trade.pnl || 0).toFixed(2)}</strong></td>
+                                <td class="${pnlClass}">${Number(trade.pnl_pct || 0).toFixed(2)}%</td>
+                            </tr>
+                        `;
+                    });
+                    html += '</tbody></table></div>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p class="text-muted">No closed trades yet</p>';
+                }
+            })
+            .catch(e => {
+                console.error('Error loading recent trades:', e);
+                document.getElementById('recent-trades-container').innerHTML = '<p class="text-muted">Recent trades data not available</p>';
+            });
+    }
+</script>
 {% endblock %}

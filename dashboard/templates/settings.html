@@ -6,7 +6,104 @@
 <div class="row mb-4">
     <div class="col-12">
         <h1>System Settings</h1>
-        <p class="text-muted">Coming soon - system configuration and controls</p>
     </div>
 </div>
+
+<!-- System Status -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <strong>System Status</strong>
+            </div>
+            <div class="card-body">
+                <div id="system-status">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Configuration Info -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <strong>System Configuration</strong>
+            </div>
+            <div class="card-body">
+                <div id="config-info">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        loadSettings();
+        setInterval(loadSettings, 10000); // Refresh every 10 seconds
+    });
+    
+    function loadSettings() {
+        // Load system status
+        fetch('/api/status')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('system-status');
+                let html = '<div class="row">';
+                html += `
+                    <div class="col-md-6">
+                        <p><strong>System Status:</strong> <span class="badge ${data.status === 'online' ? 'bg-success' : 'bg-danger'}">${data.status ? data.status.toUpperCase() : 'UNKNOWN'}</span></p>
+                        <p><strong>Market Data:</strong> <span class="badge ${data.market_data ? 'bg-success' : 'bg-secondary'}">${data.market_data ? 'Running' : 'Stopped'}</span></p>
+                        <p><strong>Last Update:</strong> ${new Date().toLocaleString()}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Dashboard URL:</strong> ${window.location.origin}</p>
+                        <p><strong>WebSocket:</strong> <span class="badge bg-info">Connected</span></p>
+                    </div>
+                `;
+                html += '</div>';
+                container.innerHTML = html;
+            })
+            .catch(e => {
+                document.getElementById('system-status').innerHTML = '<p class="text-danger">Error loading system status</p>';
+            });
+        
+        // Load configuration info
+        fetch('/api/accounts')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('config-info');
+                let html = '<div class="row">';
+                html += `<div class="col-md-12"><h5>Accounts Configured: ${data.accounts ? data.accounts.length : 0}</h5>`;
+                if (data.accounts && data.accounts.length > 0) {
+                    html += '<ul class="list-group">';
+                    data.accounts.forEach(account => {
+                        html += `<li class="list-group-item">${account.name} (${account.id.substring(0, 15)}...)</li>`;
+                    });
+                    html += '</ul>';
+                } else {
+                    html += '<p class="text-muted">No accounts configured</p>';
+                }
+                html += '</div></div>';
+                container.innerHTML = html;
+            })
+            .catch(e => {
+                document.getElementById('config-info').innerHTML = '<p class="text-muted">Configuration info not available</p>';
+            });
+    }
+</script>
 {% endblock %}
