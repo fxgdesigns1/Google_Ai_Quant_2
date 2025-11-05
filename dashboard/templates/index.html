@@ -3,53 +3,111 @@
 {% block title %}Dashboard - Trading System{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <h1>Trading Dashboard</h1>
-        <div class="alert alert-info" id="status-alert">
-            <span id="status-indicator" class="badge bg-secondary">Loading...</span>
-            System Status
-            <span class="float-end" id="last-update">-</span>
+<!-- Header Section -->
+<div class="dashboard-header mb-4">
+    <div class="row align-items-center">
+        <div class="col-md-8">
+            <h1 class="dashboard-title">Trading Dashboard</h1>
+            <p class="dashboard-subtitle">Real-time monitoring and control</p>
+        </div>
+        <div class="col-md-4 text-end">
+            <div class="status-badge" id="status-badge">
+                <span class="status-dot" id="status-dot"></span>
+                <span id="status-text">Connecting...</span>
+            </div>
+            <small class="text-muted d-block mt-2" id="last-update">Last update: -</small>
+        </div>
+    </div>
+</div>
+
+<!-- Key Metrics Row -->
+<div class="row mb-4" id="key-metrics-row">
+    <div class="col-md-3">
+        <div class="metric-card">
+            <div class="metric-icon">💰</div>
+            <div class="metric-content">
+                <div class="metric-label">Total Balance</div>
+                <div class="metric-value" id="total-balance">$0.00</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="metric-card">
+            <div class="metric-icon">📈</div>
+            <div class="metric-content">
+                <div class="metric-label">Total P&L</div>
+                <div class="metric-value" id="total-pnl">$0.00</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="metric-card">
+            <div class="metric-icon">📊</div>
+            <div class="metric-content">
+                <div class="metric-label">Open Positions</div>
+                <div class="metric-value" id="total-positions">0</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="metric-card">
+            <div class="metric-icon">🎯</div>
+            <div class="metric-content">
+                <div class="metric-label">Active Strategies</div>
+                <div class="metric-value" id="active-strategies">0</div>
+            </div>
         </div>
     </div>
 </div>
 
 <!-- Accounts Overview -->
-<div class="row mb-4" id="accounts-row">
+<div class="row mb-4">
     <div class="col-12">
-        <h3>Account Overview</h3>
-        <div id="accounts-container">
-            <div class="text-center">
-                <div class="spinner-border" role="status">
-                    <span class="visually-hidden">Loading...</span>
+        <div class="section-card">
+            <div class="section-header">
+                <h3>Account Overview</h3>
+                <button class="btn btn-sm btn-outline-primary" onclick="refreshAccounts()">Refresh</button>
+            </div>
+            <div class="section-body" id="accounts-container">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Performance Metrics & Ratios -->
+<!-- Two Column Layout -->
 <div class="row mb-4">
-    <div class="col-12">
-        <h3>Performance Metrics</h3>
-        <div id="performance-container">
-            <div class="text-center">
-                <div class="spinner-border" role="status">
-                    <span class="visually-hidden">Loading...</span>
+    <!-- Performance Metrics -->
+    <div class="col-lg-6 mb-4">
+        <div class="section-card">
+            <div class="section-header">
+                <h3>Performance Metrics</h3>
+            </div>
+            <div class="section-body" id="performance-container">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
-
-<!-- AB Lane - Strategy Comparison -->
-<div class="row mb-4">
-    <div class="col-12">
-        <h3>Strategy Comparison (A/B Lane)</h3>
-        <div id="ab-lane-container">
-            <div class="text-center">
-                <div class="spinner-border" role="status">
-                    <span class="visually-hidden">Loading...</span>
+    
+    <!-- Strategy Comparison (A/B Lane) -->
+    <div class="col-lg-6 mb-4">
+        <div class="section-card">
+            <div class="section-header">
+                <h3>Strategy Comparison (A/B Lane)</h3>
+            </div>
+            <div class="section-body" id="ab-lane-container">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -59,11 +117,17 @@
 <!-- Open Positions -->
 <div class="row mb-4">
     <div class="col-12">
-        <h3>Open Positions</h3>
-        <div id="positions-container">
-            <div class="text-center">
-                <div class="spinner-border" role="status">
-                    <span class="visually-hidden">Loading...</span>
+        <div class="section-card">
+            <div class="section-header">
+                <h3>Open Positions</h3>
+            </div>
+            <div class="section-body">
+                <div id="positions-container">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -73,24 +137,36 @@
 <!-- News & Sentiment Section -->
 <div class="row mb-4">
     <!-- News Events -->
-    <div class="col-md-8">
-        <h3>Economic News</h3>
-        <div id="news-container">
-            <div class="text-center">
-                <div class="spinner-border" role="status">
-                    <span class="visually-hidden">Loading...</span>
+    <div class="col-lg-8 mb-4">
+        <div class="section-card">
+            <div class="section-header">
+                <h3>Economic News</h3>
+            </div>
+            <div class="section-body">
+                <div id="news-container">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
     
     <!-- Market Sentiment -->
-    <div class="col-md-4">
-        <h3>Market Sentiment</h3>
-        <div id="sentiment-container">
-            <div class="text-center">
-                <div class="spinner-border" role="status">
-                    <span class="visually-hidden">Loading...</span>
+    <div class="col-lg-4 mb-4">
+        <div class="section-card">
+            <div class="section-header">
+                <h3>Market Sentiment</h3>
+            </div>
+            <div class="section-body">
+                <div id="sentiment-container">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -100,11 +176,25 @@
 <!-- System Information -->
 <div class="row">
     <div class="col-12">
-        <h3>System Information</h3>
-        <div class="card">
-            <div class="card-body">
-                <p><strong>Market Data:</strong> <span id="market-data-status">-</span></p>
-                <p><strong>Last Update:</strong> <span id="last-update-time">-</span></p>
+        <div class="section-card">
+            <div class="section-header">
+                <h3>System Information</h3>
+            </div>
+            <div class="section-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <p><strong>Market Data:</strong> <span id="market-data-status" class="badge bg-secondary">-</span></p>
+                    </div>
+                    <div class="col-md-3">
+                        <p><strong>Trading System:</strong> <span id="trading-system-status" class="badge bg-secondary">-</span></p>
+                    </div>
+                    <div class="col-md-3">
+                        <p><strong>Last Update:</strong> <span id="last-update-time">-</span></p>
+                    </div>
+                    <div class="col-md-3">
+                        <p><strong>Uptime:</strong> <span id="uptime">-</span></p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -113,56 +203,112 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script src="{{ url_for('static', filename='js/websocket.js') }}"></script>
 <script>
+    let startTime = Date.now();
+    
+    function updateUptime() {
+        const uptime = Math.floor((Date.now() - startTime) / 1000);
+        const hours = Math.floor(uptime / 3600);
+        const minutes = Math.floor((uptime % 3600) / 60);
+        const seconds = uptime % 60;
+        document.getElementById('uptime').textContent = `${hours}h ${minutes}m ${seconds}s`;
+    }
+    setInterval(updateUptime, 1000);
+    
     // Load dashboard data on page load
     document.addEventListener('DOMContentLoaded', function() {
         loadDashboard();
         setInterval(loadDashboard, 5000); // Refresh every 5 seconds
     });
     
+    function refreshAccounts() {
+        loadDashboard();
+    }
+    
     function loadDashboard() {
         // Load status
         fetch('/api/status')
             .then(r => r.json())
             .then(data => {
-                const indicator = document.getElementById('status-indicator');
+                const statusDot = document.getElementById('status-dot');
+                const statusText = document.getElementById('status-text');
+                const badge = document.getElementById('status-badge');
+                
                 if (data.status === 'online') {
-                    indicator.className = 'badge bg-success';
-                    indicator.textContent = 'ONLINE';
+                    statusDot.className = 'status-dot status-online';
+                    statusText.textContent = 'ONLINE';
+                    badge.className = 'status-badge status-online';
                     document.getElementById('market-data-status').textContent = data.market_data ? 'Running' : 'Stopped';
+                    document.getElementById('market-data-status').className = data.market_data ? 'badge bg-success' : 'badge bg-warning';
+                    document.getElementById('trading-system-status').textContent = data.trading_system_connected ? 'Connected' : 'Disconnected';
+                    document.getElementById('trading-system-status').className = data.trading_system_connected ? 'badge bg-success' : 'badge bg-secondary';
                 } else {
-                    indicator.className = 'badge bg-danger';
-                    indicator.textContent = 'OFFLINE';
+                    statusDot.className = 'status-dot status-offline';
+                    statusText.textContent = 'OFFLINE';
+                    badge.className = 'status-badge status-offline';
                 }
                 document.getElementById('last-update-time').textContent = new Date().toLocaleString();
-                document.getElementById('last-update').textContent = new Date().toLocaleTimeString();
+                document.getElementById('last-update').textContent = `Last update: ${new Date().toLocaleTimeString()}`;
+            })
+            .catch(e => {
+                console.error('Error loading status:', e);
             });
         
-        // Load accounts
+        // Load accounts and calculate totals
         fetch('/api/accounts')
             .then(r => r.json())
             .then(data => {
                 const container = document.getElementById('accounts-container');
+                let totalBalance = 0;
+                let totalPnl = 0;
+                let totalPositions = 0;
+                
                 if (data.accounts && data.accounts.length > 0) {
                     let html = '<div class="row">';
                     data.accounts.forEach(account => {
                         const pnl = account.unrealized_pl + account.realized_pl;
                         const pnlClass = pnl >= 0 ? 'text-success' : 'text-danger';
                         const pnlPct = account.balance > 0 ? ((pnl / account.balance) * 100).toFixed(2) : '0.00';
+                        
+                        totalBalance += account.balance;
+                        totalPnl += pnl;
+                        totalPositions += account.open_position_count;
+                        
                         html += `
                             <div class="col-md-4 mb-3">
-                                <div class="card">
-                                    <div class="card-header bg-primary text-white">
-                                        <strong>${account.name}</strong>
+                                <div class="account-card">
+                                    <div class="account-header">
+                                        <h5>${account.name}</h5>
+                                        <span class="account-id">${account.id.substring(0, 8)}...</span>
                                     </div>
-                                    <div class="card-body">
-                                        <p><strong>Balance:</strong> $${account.balance.toFixed(2)}</p>
-                                        <p><strong>P&L:</strong> <span class="${pnlClass}">$${pnl.toFixed(2)} (${pnlPct}%)</span></p>
-                                        <p><strong>Unrealized:</strong> $${account.unrealized_pl.toFixed(2)}</p>
-                                        <p><strong>Realized:</strong> $${account.realized_pl.toFixed(2)}</p>
-                                        <p><strong>Open Trades:</strong> ${account.open_trade_count}</p>
-                                        <p><strong>Margin Used:</strong> $${account.margin_used.toFixed(2)}</p>
-                                        <p><strong>Margin Available:</strong> $${account.margin_available.toFixed(2)}</p>
+                                    <div class="account-body">
+                                        <div class="account-metric">
+                                            <span class="metric-label">Balance</span>
+                                            <span class="metric-value">$${account.balance.toFixed(2)}</span>
+                                        </div>
+                                        <div class="account-metric">
+                                            <span class="metric-label">P&L</span>
+                                            <span class="metric-value ${pnlClass}">$${pnl.toFixed(2)} <small>(${pnlPct}%)</small></span>
+                                        </div>
+                                        <div class="account-details">
+                                            <div class="detail-item">
+                                                <span>Unrealized:</span>
+                                                <span class="${account.unrealized_pl >= 0 ? 'text-success' : 'text-danger'}">$${account.unrealized_pl.toFixed(2)}</span>
+                                            </div>
+                                            <div class="detail-item">
+                                                <span>Realized:</span>
+                                                <span class="${account.realized_pl >= 0 ? 'text-success' : 'text-danger'}">$${account.realized_pl.toFixed(2)}</span>
+                                            </div>
+                                            <div class="detail-item">
+                                                <span>Open Trades:</span>
+                                                <span>${account.open_trade_count}</span>
+                                            </div>
+                                            <div class="detail-item">
+                                                <span>Margin Used:</span>
+                                                <span>$${account.margin_used.toFixed(2)}</span>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -171,11 +317,18 @@
                     html += '</div>';
                     container.innerHTML = html;
                 } else {
-                    container.innerHTML = '<p class="text-muted">No accounts found</p>';
+                    container.innerHTML = '<p class="text-muted text-center py-4">No accounts found</p>';
                 }
+                
+                // Update key metrics
+                document.getElementById('total-balance').textContent = `$${totalBalance.toFixed(2)}`;
+                document.getElementById('total-pnl').textContent = `$${totalPnl.toFixed(2)}`;
+                document.getElementById('total-pnl').className = totalPnl >= 0 ? 'metric-value text-success' : 'metric-value text-danger';
+                document.getElementById('total-positions').textContent = totalPositions;
             })
             .catch(e => {
-                document.getElementById('accounts-container').innerHTML = '<p class="text-danger">Error loading accounts</p>';
+                console.error('Error loading accounts:', e);
+                document.getElementById('accounts-container').innerHTML = '<p class="text-danger text-center py-4">Error loading accounts</p>';
             });
         
         // Load performance metrics
@@ -184,54 +337,55 @@
             .then(data => {
                 const container = document.getElementById('performance-container');
                 if (data.performance && Object.keys(data.performance).length > 0) {
-                    let html = '<div class="row">';
+                    let html = '';
                     for (const [accountId, perf] of Object.entries(data.performance)) {
                         html += `
-                            <div class="col-md-6 mb-3">
-                                <div class="card">
-                                    <div class="card-header bg-info text-white">
-                                        <strong>${perf.account_name}</strong>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="row">
-                                            <div class="col-md-6">
-                                                                                                 <p><strong>Total Trades:</strong> ${perf.total_trades}</p>
-                                                 <p><strong>Win Rate:</strong> <span class="${perf.win_rate >= 50 ? 'text-success' : 'text-danger'}">${Number(perf.win_rate || 0).toFixed(2)}%</span></p>
-                                                <p><strong>Wins:</strong> ${perf.win_count} | <strong>Losses:</strong> ${perf.loss_count}</p>
-                                                                                                 <p><strong>Total P&L:</strong> <span class="${perf.total_pnl >= 0 ? 'text-success' : 'text-danger'}">$${Number(perf.total_pnl || 0).toFixed(2)}</span></p>
-                                                 <p><strong>Total P&L %:</strong> <span class="${perf.total_pnl_pct >= 0 ? 'text-success' : 'text-danger'}">${Number(perf.total_pnl_pct || 0).toFixed(2)}%</span></p>
-                                                 <p><strong>Avg P&L:</strong> $${Number(perf.avg_pnl || 0).toFixed(2)}</p>
-                                             </div>
-                                             <div class="col-md-6">
-                                                 <p><strong>Profit Factor:</strong> <span class="${perf.profit_factor >= 1 ? 'text-success' : 'text-danger'}">${Number(perf.profit_factor || 0).toFixed(2)}</span></p>
-                                                 <p><strong>Expectancy:</strong> <span class="${perf.expectancy >= 0 ? 'text-success' : 'text-danger'}">$${Number(perf.expectancy || 0).toFixed(2)}</span></p>
-                                                 <p><strong>Sharpe Ratio:</strong> ${Number(perf.sharpe_ratio || 0).toFixed(2)}</p>
-                                                 <p><strong>Max Drawdown:</strong> <span class="text-danger">$${Number(perf.max_drawdown || 0).toFixed(2)}</span></p>
-                                                 <p><strong>Avg Win:</strong> <span class="text-success">$${Number(perf.avg_win || 0).toFixed(2)}</span></p>
-                                                 <p><strong>Avg Loss:</strong> <span class="text-danger">$${Number(perf.avg_loss || 0).toFixed(2)}</span></p>
+                            <div class="performance-item mb-3">
+                                <div class="performance-header">
+                                    <strong>${perf.account_name}</strong>
+                                </div>
+                                <div class="performance-metrics">
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <div class="perf-metric">
+                                                <span class="perf-label">Win Rate</span>
+                                                <span class="perf-value ${perf.win_rate >= 50 ? 'text-success' : 'text-danger'}">${Number(perf.win_rate || 0).toFixed(1)}%</span>
                                             </div>
                                         </div>
-                                        ${Object.keys(perf.strategy_stats).length > 0 ? `
-                                            <hr>
-                                            <h6>Strategy Breakdown:</h6>
-                                                                                         ${Object.entries(perf.strategy_stats).map(([strategy, stats]) => `
-                                                 <p><strong>${strategy}:</strong> ${stats.total_trades} trades, ${Number(stats.win_rate || 0).toFixed(1)}% win rate, $${Number(stats.total_pnl || 0).toFixed(2)} P&L</p>
-                                             `).join('')}
-                                        ` : ''}
+                                        <div class="col-6">
+                                            <div class="perf-metric">
+                                                <span class="perf-label">Total P&L</span>
+                                                <span class="perf-value ${perf.total_pnl >= 0 ? 'text-success' : 'text-danger'}">$${Number(perf.total_pnl || 0).toFixed(2)}</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="perf-metric">
+                                                <span class="perf-label">Profit Factor</span>
+                                                <span class="perf-value ${perf.profit_factor >= 1 ? 'text-success' : 'text-danger'}">${Number(perf.profit_factor || 0).toFixed(2)}</span>
+                                            </div>
+                                        </div>
+                                        <div class="col-6">
+                                            <div class="perf-metric">
+                                                <span class="perf-label">Sharpe Ratio</span>
+                                                <span class="perf-value">${Number(perf.sharpe_ratio || 0).toFixed(2)}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="perf-summary mt-2">
+                                        <small class="text-muted">${perf.total_trades || 0} trades | ${perf.win_count || 0}W / ${perf.loss_count || 0}L</small>
                                     </div>
                                 </div>
                             </div>
                         `;
                     }
-                    html += '</div>';
                     container.innerHTML = html;
                 } else {
-                    container.innerHTML = '<p class="text-muted">No performance data available yet. Performance metrics will appear after trades are executed.</p>';
+                    container.innerHTML = '<p class="text-muted text-center py-4">No performance data available yet</p>';
                 }
             })
             .catch(e => {
                 console.error('Error loading performance:', e);
-                document.getElementById('performance-container').innerHTML = '<p class="text-muted">Performance data not available</p>';
+                document.getElementById('performance-container').innerHTML = '<p class="text-muted text-center py-4">Performance data not available</p>';
             });
         
         // Load AB Lane (Strategy Comparison)
@@ -246,38 +400,43 @@
                     const perfB = accountB[1];
                     
                     let html = `
-                        <div class="card">
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-6 border-end">
-                                        <h5 class="text-primary">Strategy A: ${perfA.account_name}</h5>
-                                        <div class="row">
-                                            <div class="col-6">
-                                                                                                 <p><strong>Win Rate:</strong> <span class="${perfA.win_rate >= perfB.win_rate ? 'text-success' : 'text-muted'}">${Number(perfA.win_rate || 0).toFixed(2)}%</span></p>
-                                                 <p><strong>Profit Factor:</strong> <span class="${perfA.profit_factor >= perfB.profit_factor ? 'text-success' : 'text-muted'}">${Number(perfA.profit_factor || 0).toFixed(2)}</span></p>
-                                                 <p><strong>Sharpe Ratio:</strong> <span class="${perfA.sharpe_ratio >= perfB.sharpe_ratio ? 'text-success' : 'text-muted'}">${Number(perfA.sharpe_ratio || 0).toFixed(2)}</span></p>
-                                             </div>
-                                             <div class="col-6">
-                                                 <p><strong>Total P&L:</strong> <span class="${perfA.total_pnl >= perfB.total_pnl ? 'text-success' : 'text-muted'}">$${Number(perfA.total_pnl || 0).toFixed(2)}</span></p>
-                                                 <p><strong>Total Trades:</strong> ${perfA.total_trades || 0}</p>
-                                                 <p><strong>Expectancy:</strong> <span class="${perfA.expectancy >= perfB.expectancy ? 'text-success' : 'text-muted'}">$${Number(perfA.expectancy || 0).toFixed(2)}</span></p>
-                                            </div>
-                                        </div>
+                        <div class="ab-comparison">
+                            <div class="ab-strategy ab-strategy-a">
+                                <div class="ab-header">
+                                    <h5>Strategy A: ${perfA.account_name}</h5>
+                                </div>
+                                <div class="ab-metrics">
+                                    <div class="ab-metric">
+                                        <span>Win Rate</span>
+                                        <strong class="${perfA.win_rate >= perfB.win_rate ? 'text-success' : ''}">${Number(perfA.win_rate || 0).toFixed(1)}%</strong>
                                     </div>
-                                    <div class="col-md-6">
-                                        <h5 class="text-success">Strategy B: ${perfB.account_name}</h5>
-                                        <div class="row">
-                                            <div class="col-6">
-                                                                                                 <p><strong>Win Rate:</strong> <span class="${perfB.win_rate >= perfA.win_rate ? 'text-success' : 'text-muted'}">${Number(perfB.win_rate || 0).toFixed(2)}%</span></p>
-                                                 <p><strong>Profit Factor:</strong> <span class="${perfB.profit_factor >= perfA.profit_factor ? 'text-success' : 'text-muted'}">${Number(perfB.profit_factor || 0).toFixed(2)}</span></p>
-                                                 <p><strong>Sharpe Ratio:</strong> <span class="${perfB.sharpe_ratio >= perfA.sharpe_ratio ? 'text-success' : 'text-muted'}">${Number(perfB.sharpe_ratio || 0).toFixed(2)}</span></p>
-                                             </div>
-                                             <div class="col-6">
-                                                 <p><strong>Total P&L:</strong> <span class="${perfB.total_pnl >= perfA.total_pnl ? 'text-success' : 'text-muted'}">$${Number(perfB.total_pnl || 0).toFixed(2)}</span></p>
-                                                 <p><strong>Total Trades:</strong> ${perfB.total_trades || 0}</p>
-                                                 <p><strong>Expectancy:</strong> <span class="${perfB.expectancy >= perfA.expectancy ? 'text-success' : 'text-muted'}">$${Number(perfB.expectancy || 0).toFixed(2)}</span></p>
-                                            </div>
-                                        </div>
+                                    <div class="ab-metric">
+                                        <span>Profit Factor</span>
+                                        <strong class="${perfA.profit_factor >= perfB.profit_factor ? 'text-success' : ''}">${Number(perfA.profit_factor || 0).toFixed(2)}</strong>
+                                    </div>
+                                    <div class="ab-metric">
+                                        <span>Total P&L</span>
+                                        <strong class="${perfA.total_pnl >= perfB.total_pnl ? 'text-success' : ''}">$${Number(perfA.total_pnl || 0).toFixed(2)}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="ab-divider">VS</div>
+                            <div class="ab-strategy ab-strategy-b">
+                                <div class="ab-header">
+                                    <h5>Strategy B: ${perfB.account_name}</h5>
+                                </div>
+                                <div class="ab-metrics">
+                                    <div class="ab-metric">
+                                        <span>Win Rate</span>
+                                        <strong class="${perfB.win_rate >= perfA.win_rate ? 'text-success' : ''}">${Number(perfB.win_rate || 0).toFixed(1)}%</strong>
+                                    </div>
+                                    <div class="ab-metric">
+                                        <span>Profit Factor</span>
+                                        <strong class="${perfB.profit_factor >= perfA.profit_factor ? 'text-success' : ''}">${Number(perfB.profit_factor || 0).toFixed(2)}</strong>
+                                    </div>
+                                    <div class="ab-metric">
+                                        <span>Total P&L</span>
+                                        <strong class="${perfB.total_pnl >= perfA.total_pnl ? 'text-success' : ''}">$${Number(perfB.total_pnl || 0).toFixed(2)}</strong>
                                     </div>
                                 </div>
                             </div>
@@ -285,12 +444,12 @@
                     `;
                     container.innerHTML = html;
                 } else {
-                    container.innerHTML = '<p class="text-muted">A/B comparison requires at least 2 accounts with performance data. Currently need more accounts or trades.</p>';
+                    container.innerHTML = '<p class="text-muted text-center py-4">A/B comparison requires at least 2 accounts with performance data</p>';
                 }
             })
             .catch(e => {
                 console.error('Error loading AB lane:', e);
-                document.getElementById('ab-lane-container').innerHTML = '<p class="text-muted">A/B comparison data not available</p>';
+                document.getElementById('ab-lane-container').innerHTML = '<p class="text-muted text-center py-4">A/B comparison data not available</p>';
             });
         
         // Load positions
@@ -299,27 +458,28 @@
             .then(data => {
                 const container = document.getElementById('positions-container');
                 if (data.positions && data.positions.length > 0) {
-                    let html = '<table class="table table-striped"><thead><tr><th>Account</th><th>Instrument</th><th>Long Units</th><th>Short Units</th><th>Unrealized P&L</th></tr></thead><tbody>';
+                    let html = '<div class="table-responsive"><table class="table table-hover"><thead><tr><th>Account</th><th>Instrument</th><th>Long</th><th>Short</th><th>Unrealized P&L</th></tr></thead><tbody>';
                     data.positions.forEach(pos => {
                         const pnlClass = pos.unrealized_pl >= 0 ? 'text-success' : 'text-danger';
                         html += `
                             <tr>
-                                <td>${pos.account_id.substring(0, 15)}...</td>
-                                <td>${pos.instrument}</td>
+                                <td><small>${pos.account_id.substring(0, 12)}...</small></td>
+                                <td><strong>${pos.instrument}</strong></td>
                                 <td>${pos.long_units}</td>
                                 <td>${pos.short_units}</td>
-                                <td class="${pnlClass}">$${pos.unrealized_pl.toFixed(2)}</td>
+                                <td class="${pnlClass}"><strong>$${pos.unrealized_pl.toFixed(2)}</strong></td>
                             </tr>
                         `;
                     });
-                    html += '</tbody></table>';
+                    html += '</tbody></table></div>';
                     container.innerHTML = html;
                 } else {
-                    container.innerHTML = '<p class="text-muted">No open positions</p>';
+                    container.innerHTML = '<p class="text-muted text-center py-4">No open positions</p>';
                 }
             })
             .catch(e => {
-                document.getElementById('positions-container').innerHTML = '<p class="text-danger">Error loading positions</p>';
+                console.error('Error loading positions:', e);
+                document.getElementById('positions-container').innerHTML = '<p class="text-danger text-center py-4">Error loading positions</p>';
             });
         
         // Load news
@@ -328,31 +488,33 @@
             .then(data => {
                 const container = document.getElementById('news-container');
                 if (data.enabled && data.events && data.events.length > 0) {
-                    let html = '<div class="list-group">';
+                    let html = '<div class="news-list">';
                     data.events.slice(0, 10).forEach(event => {
                         const impactClass = event.impact === 'High' ? 'danger' : event.impact === 'Medium' ? 'warning' : 'info';
                         html += `
-                            <div class="list-group-item">
-                                <div class="d-flex w-100 justify-content-between">
-                                    <h6 class="mb-1">${event.title}</h6>
+                            <div class="news-item">
+                                <div class="news-header">
+                                    <h6>${event.title}</h6>
                                     <span class="badge bg-${impactClass}">${event.impact}</span>
                                 </div>
-                                <p class="mb-1"><strong>${event.country}</strong> - ${event.currency}</p>
-                                <small>In ${event.minutes_until} minutes | Affects: ${event.impacted_instruments.join(', ') || 'N/A'}</small>
+                                <div class="news-body">
+                                    <p><strong>${event.country}</strong> - ${event.currency}</p>
+                                    <small class="text-muted">In ${event.minutes_until} minutes | Affects: ${event.impacted_instruments.join(', ') || 'N/A'}</small>
+                                </div>
                             </div>
                         `;
                     });
                     html += '</div>';
                     container.innerHTML = html;
                 } else if (!data.enabled) {
-                    container.innerHTML = '<p class="text-muted">News feed not enabled or API keys not configured</p>';
+                    container.innerHTML = '<p class="text-muted text-center py-4">News feed not enabled</p>';
                 } else {
-                    container.innerHTML = '<p class="text-muted">No upcoming high-impact news events</p>';
+                    container.innerHTML = '<p class="text-muted text-center py-4">No upcoming high-impact news events</p>';
                 }
             })
             .catch(e => {
                 console.error('Error loading news:', e);
-                document.getElementById('news-container').innerHTML = '<p class="text-muted">News data not available</p>';
+                document.getElementById('news-container').innerHTML = '<p class="text-muted text-center py-4">News data not available</p>';
             });
         
         // Load sentiment
@@ -362,31 +524,41 @@
                 const container = document.getElementById('sentiment-container');
                 if (data.enabled && data.sentiment && Object.keys(data.sentiment).length > 0) {
                     const sent = data.sentiment;
-                    let html = '<div class="card">';
-                    html += '<div class="card-body">';
+                    let html = '<div class="sentiment-display">';
                     if (sent.avg_score !== undefined) {
                         const scoreClass = sent.avg_score > 0 ? 'success' : sent.avg_score < 0 ? 'danger' : 'secondary';
-                        html += `<p><strong>Overall Sentiment:</strong> <span class="badge bg-${scoreClass}">${sent.avg_score > 0 ? '+' : ''}${sent.avg_score.toFixed(2)}</span></p>`;
+                        html += `<div class="sentiment-score"><span class="badge bg-${scoreClass} badge-lg">${sent.avg_score > 0 ? '+' : ''}${sent.avg_score.toFixed(2)}</span></div>`;
                     }
                     if (sent.entities) {
-                        html += '<h6>Currency Mentions:</h6><ul class="list-unstyled">';
+                        html += '<div class="sentiment-entities"><h6>Currency Mentions:</h6><ul>';
                         for (const [currency, count] of Object.entries(sent.entities)) {
                             if (count > 0) {
-                                html += `<li>${currency}: ${count} mentions</li>`;
+                                html += `<li><span class="currency">${currency}</span>: <strong>${count}</strong></li>`;
                             }
                         }
-                        html += '</ul>';
+                        html += '</ul></div>';
                     }
-                    html += '</div></div>';
+                    html += '</div>';
                     container.innerHTML = html;
                 } else {
-                    container.innerHTML = '<p class="text-muted">Sentiment data not available</p>';
+                    container.innerHTML = '<p class="text-muted text-center py-4">Sentiment data not available</p>';
                 }
             })
             .catch(e => {
                 console.error('Error loading sentiment:', e);
-                document.getElementById('sentiment-container').innerHTML = '<p class="text-muted">Sentiment data not available</p>';
+                document.getElementById('sentiment-container').innerHTML = '<p class="text-muted text-center py-4">Sentiment data not available</p>';
             });
+        
+        // Load active strategies count
+        fetch('/api/strategies')
+            .then(r => r.json())
+            .then(data => {
+                if (data.strategies) {
+                    const activeCount = Object.values(data.strategies).filter(s => s.enabled).length;
+                    document.getElementById('active-strategies').textContent = activeCount;
+                }
+            })
+            .catch(e => console.error('Error loading strategies:', e));
     }
 </script>
 {% endblock %}
