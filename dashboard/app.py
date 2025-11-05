@@ -8,6 +8,7 @@ from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
 import logging
 import sys
+import threading
 from pathlib import Path
 import sqlite3
 from datetime import datetime, timedelta
@@ -187,12 +188,16 @@ def api_positions():
 def api_strategies():
     """Get strategy status"""
     try:
+        if not system_components:
+            return jsonify({'strategies': {}})
+        
         coordinator = system_components.get('strategy_coordinator')
         if coordinator:
             return jsonify({'strategies': coordinator.get_strategy_status()})
         return jsonify({'strategies': {}})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error in api_strategies: {e}", exc_info=True)
+        return jsonify({'strategies': {}, 'error': str(e)})
 
 
 @app.route('/api/performance')
@@ -447,11 +452,121 @@ def api_news_upcoming():
         return jsonify({'events': [], 'error': str(e)}), 500
 
 
+# Background thread for periodic updates
+update_thread = None
+update_thread_running = False
+
+
+def broadcast_updates():
+    """Periodically broadcast system updates via WebSocket"""
+    global update_thread_running
+    import time
+    
+    while update_thread_running:
+        try:
+            # Broadcast status update
+            try:
+                market_data = system_components.get('market_data') if system_components else None
+                socketio.emit('status_update', {
+                    'status': 'online',
+                    'market_data': market_data.running if market_data else False,
+                    'timestamp': datetime.utcnow().isoformat()
+                })
+            except Exception as e:
+                logger.debug(f"Error broadcasting status: {e}")
+            
+            # Broadcast account updates
+            try:
+                accounts_data = []
+                broker = system_components.get('broker') if system_components else None
+                config = system_components.get('config') if system_components else None
+                
+                if broker and config:
+                    for account_config in config.get('accounts', []):
+                        try:
+                            account = broker.get_account(account_config['id'])
+                            accounts_data.append({
+                                'id': account_config['id'],
+                                'name': account_config.get('name', account_config['id']),
+                                'balance': account.balance,
+                                'unrealized_pl': account.unrealized_pl,
+                                'realized_pl': account.realized_pl,
+                                'margin_used': account.margin_used,
+                                'margin_available': account.margin_available,
+                                'open_trade_count': account.open_trade_count,
+                                'open_position_count': account.open_position_count
+                            })
+                        except Exception as e:
+                            logger.debug(f"Error getting account {account_config['id']}: {e}")
+                
+                if accounts_data:
+                    socketio.emit('accounts_update', {'accounts': accounts_data})
+            except Exception as e:
+                logger.debug(f"Error broadcasting accounts: {e}")
+            
+            # Broadcast positions update
+            try:
+                broker = system_components.get('broker') if system_components else None
+                config = system_components.get('config') if system_components else None
+                
+                if broker and config:
+                    all_positions = []
+                    for account_config in config.get('accounts', []):
+                        try:
+                            positions = broker.get_open_positions(account_config['id'])
+                            for instrument, position in positions.items():
+                                all_positions.append({
+                                    'account_id': account_config['id'],
+                                    'instrument': instrument,
+                                    'long_units': position.long_units,
+                                    'short_units': position.short_units,
+                                    'unrealized_pl': position.unrealized_pl,
+                                    'long_avg_price': position.long_avg_price,
+                                    'short_avg_price': position.short_avg_price
+                                })
+                        except Exception as e:
+                            logger.debug(f"Error getting positions for {account_config['id']}: {e}")
+                    
+                    socketio.emit('positions_update', {'positions': all_positions})
+            except Exception as e:
+                logger.debug(f"Error broadcasting positions: {e}")
+            
+            time.sleep(5)  # Update every 5 seconds
+            
+        except Exception as e:
+            logger.error(f"Error in broadcast loop: {e}", exc_info=True)
+            time.sleep(10)
+
+
+def start_update_thread():
+    """Start the background update thread"""
+    global update_thread, update_thread_running
+    if update_thread_running:
+        return
+    
+    update_thread_running = True
+    update_thread = threading.Thread(target=broadcast_updates, daemon=True)
+    update_thread.start()
+    logger.info("✅ Background update thread started")
+
+
+def stop_update_thread():
+    """Stop the background update thread"""
+    global update_thread_running
+    update_thread_running = False
+    if update_thread:
+        update_thread.join(timeout=5)
+
+
 @socketio.on('connect')
 def handle_connect():
     """Handle WebSocket connection"""
     logger.info('Client connected')
     emit('status', {'message': 'Connected to trading system'})
+    
+    # Start update thread if not already running
+    if not update_thread_running:
+        start_update_thread()
 
 
 @socketio.on('disconnect')
@@ -461,6 +576,10 @@ def handle_disconnect():
 
 
 def set_system_components(components):
-    """Set system components reference (called by dashboard_server.py)"""
+    """Set system components reference (called by dashboard_server.py or integrated_server.py)"""
     global system_components
     system_components = components
+    
+    # Start update thread if components are set
+    if components and not update_thread_running:
+        start_update_thread()
