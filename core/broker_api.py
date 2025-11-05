@@ -18,6 +18,17 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class HistoricalCandle:
+    """Historical price candle"""
+    time: datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float = 0.0
+
+
+@dataclass
 class BrokerAccount:
     """Account information"""
     account_id: str
@@ -353,4 +364,70 @@ class OandaBroker:
             return response
         except V20Error as e:
             logger.error(f"❌ Failed to modify trade {trade_id}: {e}")
+            raise
+    
+    def get_historical_candles(
+        self,
+        instrument: str,
+        granularity: str = 'M15',
+        count: int = 50,
+        account_id: str = None
+    ) -> List[HistoricalCandle]:
+        """
+        Fetch historical candles from OANDA
+        
+        Args:
+            instrument: Instrument symbol (e.g., 'EUR_USD', 'XAU_USD')
+            granularity: Timeframe (M1, M5, M15, H1, H4, D, etc.)
+            count: Number of candles to fetch (max 5000)
+            account_id: Account ID (optional, uses default if not provided)
+        
+        Returns:
+            List of HistoricalCandle objects
+        """
+        account_id = account_id or self.account_id
+        if not account_id:
+            raise ValueError("Account ID required")
+        
+        try:
+            self._rate_limit()
+            
+            params = {
+                'granularity': granularity,
+                'count': min(count, 5000)  # OANDA max is 5000
+            }
+            
+            r = instruments.InstrumentsCandles(instrument=instrument, params=params)
+            response = self.api.request(r)
+            
+            candles = []
+            for candle_data in response.get('candles', []):
+                if candle_data.get('complete', False):  # Only use complete candles
+                    mid = candle_data.get('mid', {})
+                    time_str = candle_data.get('time', '')
+                    
+                    # Parse timestamp
+                    try:
+                        candle_time = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+                    except:
+                        candle_time = datetime.utcnow()
+                    
+                    candle = HistoricalCandle(
+                        time=candle_time,
+                        open=float(mid.get('o', 0)),
+                        high=float(mid.get('h', 0)),
+                        low=float(mid.get('l', 0)),
+                        close=float(mid.get('c', 0)),
+                        volume=float(candle_data.get('volume', 0))
+                    )
+                    candles.append(candle)
+            
+            logger.debug(f"✅ Fetched {len(candles)} historical candles for {instrument}")
+            return candles
+            
+        except V20Error as e:
+            logger.error(f"❌ Failed to get historical candles for {instrument}: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"❌ Unexpected error getting historical candles: {e}")
             raise

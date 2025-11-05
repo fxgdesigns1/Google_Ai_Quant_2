@@ -273,9 +273,10 @@ def main():
             system['trade_closer'].start(check_interval=60)
             logger.info("✅ Trade closer started")
         
-        # Start strategy coordinator
-        system['strategy_coordinator'].start()
-        logger.info("✅ Strategy coordinator started")
+        # Start strategy coordinator (scan every 5 minutes)
+        scan_interval = system['config'].get('system', {}).get('scan_interval_seconds', 300)
+        system['strategy_coordinator'].start(scan_interval=scan_interval)
+        logger.info(f"✅ Strategy coordinator started (scan interval: {scan_interval}s = {scan_interval/60:.1f} minutes)")
         
         # Send morning briefing if Telegram is enabled
         if system['telegram_alerts'] and system['telegram_alerts'].enabled:

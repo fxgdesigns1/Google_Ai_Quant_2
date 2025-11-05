@@ -13,7 +13,7 @@ from collections import deque
 import numpy as np
 from dataclasses import dataclass
 
-from .broker_api import OandaBroker, BrokerPrice
+from .broker_api import OandaBroker, BrokerPrice, HistoricalCandle
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,50 @@ class MarketDataFeed:
         self.last_update: Dict[str, datetime] = {}
         
         logger.info(f"✅ Market data feed initialized for {len(instruments)} instruments")
+        
+        # Pre-fill price history on initialization
+        self._prefill_price_history()
+    
+    def _prefill_price_history(self):
+        """Pre-fill price history from OANDA to avoid waiting hours for data"""
+        logger.info("📥 Pre-filling price history from OANDA...")
+        
+        # Get account_id from broker (needed for historical candles)
+        account_id = getattr(self.broker, 'account_id', None)
+        if not account_id:
+            logger.warning("⚠️ No account_id available for pre-filling history - will build history from live data")
+            return
+        
+        for instrument in self.instruments:
+            try:
+                # Fetch last 50 M15 candles from OANDA
+                historical_candles = self.broker.get_historical_candles(
+                    instrument=instrument,
+                    granularity='M15',
+                    count=50,
+                    account_id=account_id
+                )
+                
+                if historical_candles:
+                    # Convert HistoricalCandle to PriceBar and add to history
+                    for hc in historical_candles:
+                        price_bar = PriceBar(
+                            timestamp=hc.time,
+                            open=hc.open,
+                            high=hc.high,
+                            low=hc.low,
+                            close=hc.close,
+                            volume=hc.volume
+                        )
+                        self.price_history[instrument].append(price_bar)
+                    
+                    logger.info(f"✅ Pre-filled {len(historical_candles)} candles for {instrument}")
+                else:
+                    logger.warning(f"⚠️ No historical candles fetched for {instrument}")
+                    
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to pre-fill history for {instrument}: {e}")
+                # Continue with other instruments - system will work without prefill
     
     def start(self):
         """Start the data feed"""
