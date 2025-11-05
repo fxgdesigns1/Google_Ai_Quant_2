@@ -423,6 +423,9 @@ def api_news_events():
 def api_news_upcoming():
     """Get upcoming high-impact news events"""
     try:
+        if not system_components:
+            return jsonify({'events': [], 'enabled': False, 'message': 'Trading system not connected'})
+        
         news_aggregator = system_components.get('news_aggregator')
         if not news_aggregator or not news_aggregator.is_enabled():
             return jsonify({'events': [], 'enabled': False})
@@ -450,6 +453,191 @@ def api_news_upcoming():
     except Exception as e:
         logger.error(f"Error getting upcoming news: {e}")
         return jsonify({'events': [], 'error': str(e)}), 500
+
+
+@app.route('/api/insights')
+def api_insights():
+    """Get AI insights and market analysis"""
+    try:
+        if not system_components:
+            return jsonify({'insights': [], 'message': 'Trading system not connected'})
+        
+        market_data = system_components.get('market_data')
+        strategy_coordinator = system_components.get('strategy_coordinator')
+        risk_manager = system_components.get('risk_manager')
+        config = system_components.get('config')
+        
+        insights = []
+        
+        # Market conditions analysis
+        if market_data and market_data.running:
+            try:
+                instruments = []
+                for account in config.get('accounts', []):
+                    if account.get('enabled', False):
+                        instruments.extend(account.get('instruments', []))
+                
+                market_conditions = []
+                for instrument in set(instruments):
+                    try:
+                        price_data = market_data.get_current_price(instrument)
+                        if price_data:
+                            market_conditions.append({
+                                'instrument': instrument,
+                                'price': price_data.bid,
+                                'spread': price_data.spread,
+                                'trend': 'NEUTRAL'  # Simplified for now
+                            })
+                    except Exception as e:
+                        logger.debug(f"Error analyzing {instrument}: {e}")
+                
+                if market_conditions:
+                    insights.append({
+                        'type': 'market_conditions',
+                        'title': 'Current Market Conditions',
+                        'data': market_conditions,
+                        'timestamp': datetime.utcnow().isoformat()
+                    })
+            except Exception as e:
+                logger.debug(f"Error generating market conditions: {e}")
+        
+        # Strategy signals analysis
+        if strategy_coordinator:
+            try:
+                signals = strategy_coordinator.get_signals()
+                if signals:
+                    signal_summary = {}
+                    for signal in signals:
+                        key = f"{signal.instrument}_{signal.side}"
+                        if key not in signal_summary:
+                            signal_summary[key] = {
+                                'instrument': signal.instrument,
+                                'side': signal.side,
+                                'confidence': signal.confidence,
+                                'count': 0
+                            }
+                        signal_summary[key]['count'] += 1
+                        if signal.confidence > signal_summary[key]['confidence']:
+                            signal_summary[key]['confidence'] = signal.confidence
+                    
+                    insights.append({
+                        'type': 'signals',
+                        'title': 'Active Trading Signals',
+                        'data': list(signal_summary.values()),
+                        'timestamp': datetime.utcnow().isoformat()
+                    })
+            except Exception as e:
+                logger.debug(f"Error generating signal insights: {e}")
+        
+        # Risk assessment
+        if risk_manager:
+            try:
+                session = risk_manager.get_session_name()
+                circuit_breaker_status = risk_manager.get_circuit_breaker_status()
+                
+                risk_assessment = {
+                    'trading_session': session,
+                    'circuit_breaker_active': any(cb.get('triggered', False) for cb in circuit_breaker_status.values()),
+                    'risk_level': 'LOW'
+                }
+                
+                # Check if any circuit breakers are close
+                for account_id, status in circuit_breaker_status.items():
+                    if status.get('triggered', False):
+                        risk_assessment['risk_level'] = 'HIGH'
+                        break
+                    elif status.get('daily_loss_pct', 0) > 1.5:
+                        risk_assessment['risk_level'] = 'MEDIUM'
+                
+                insights.append({
+                    'type': 'risk',
+                    'title': 'Risk Assessment',
+                    'data': risk_assessment,
+                    'timestamp': datetime.utcnow().isoformat()
+                })
+            except Exception as e:
+                logger.debug(f"Error generating risk insights: {e}")
+        
+        # Trading activity summary
+        if strategy_coordinator:
+            try:
+                strategy_status = strategy_coordinator.get_strategy_status()
+                active_strategies = [name for name, status in strategy_status.items() if status.get('enabled', False)]
+                
+                insights.append({
+                    'type': 'activity',
+                    'title': 'Trading Activity',
+                    'data': {
+                        'active_strategies': len(active_strategies),
+                        'strategies': active_strategies,
+                        'total_signals': len(strategy_coordinator.get_signals())
+                    },
+                    'timestamp': datetime.utcnow().isoformat()
+                })
+            except Exception as e:
+                logger.debug(f"Error generating activity insights: {e}")
+        
+        return jsonify({'insights': insights})
+    except Exception as e:
+        logger.error(f"Error getting insights: {e}", exc_info=True)
+        return jsonify({'insights': [], 'error': str(e)}), 500
+
+
+@app.route('/api/trades/recent')
+def api_recent_trades():
+    """Get recent trade executions"""
+    try:
+        if not system_components:
+            return jsonify({'trades': [], 'message': 'Trading system not connected'})
+        
+        trade_logger = system_components.get('trade_logger')
+        
+        trades = []
+        
+        # Get from trade logger
+        if trade_logger:
+            try:
+                db_path = Path(__file__).parent.parent / 'data' / 'trades.db'
+                if db_path.exists():
+                    conn = sqlite3.connect(str(db_path))
+                    conn.row_factory = sqlite3.Row
+                    cursor = conn.cursor()
+                    
+                    cursor.execute('''
+                        SELECT * FROM trades 
+                        ORDER BY entry_time DESC 
+                        LIMIT 50
+                    ''')
+                    
+                    for row in cursor.fetchall():
+                        trade = dict(row)
+                        trades.append({
+                            'trade_id': trade.get('trade_id'),
+                            'instrument': trade.get('instrument'),
+                            'side': trade.get('side'),
+                            'units': trade.get('units'),
+                            'entry_price': trade.get('entry_price'),
+                            'exit_price': trade.get('exit_price'),
+                            'stop_loss': trade.get('stop_loss'),
+                            'take_profit': trade.get('take_profit'),
+                            'pnl': trade.get('pnl'),
+                            'pnl_pct': trade.get('pnl_pct'),
+                            'strategy': trade.get('strategy_name'),
+                            'status': trade.get('status', 'OPEN'),
+                            'entry_time': trade.get('entry_time'),
+                            'exit_time': trade.get('exit_time'),
+                            'timestamp': trade.get('entry_time'),
+                            'duration_minutes': trade.get('duration_minutes')
+                        })
+                    
+                    conn.close()
+            except Exception as e:
+                logger.debug(f"Error getting trades from logger: {e}")
+        
+        return jsonify({'trades': trades[:50]})
+    except Exception as e:
+        logger.error(f"Error getting recent trades: {e}", exc_info=True)
+        return jsonify({'trades': [], 'error': str(e)}), 500
 
 
 # Background thread for periodic updates

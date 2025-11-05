@@ -134,6 +134,46 @@
     </div>
 </div>
 
+<!-- AI Insights Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="section-card">
+            <div class="section-header">
+                <h3>AI Insights & Market Analysis</h3>
+            </div>
+            <div class="section-body">
+                <div id="insights-container">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Trades Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="section-card">
+            <div class="section-header">
+                <h3>Recent Trades</h3>
+            </div>
+            <div class="section-body">
+                <div id="recent-trades-container">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- News & Sentiment Section -->
 <div class="row mb-4">
     <!-- News Events -->
@@ -515,6 +555,90 @@
             .catch(e => {
                 console.error('Error loading news:', e);
                 document.getElementById('news-container').innerHTML = '<p class="text-muted text-center py-4">News data not available</p>';
+            });
+        
+        // Load AI insights
+        fetch('/api/insights')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('insights-container');
+                if (data.insights && data.insights.length > 0) {
+                    let html = '<div class="row">';
+                    data.insights.forEach(insight => {
+                        html += `<div class="col-md-6 mb-3"><div class="card"><div class="card-header bg-info text-white"><strong>${insight.title}</strong></div><div class="card-body">`;
+                        
+                        if (insight.type === 'market_conditions') {
+                            insight.data.forEach(market => {
+                                const trendClass = market.trend === 'BULLISH' ? 'success' : market.trend === 'BEARISH' ? 'danger' : 'secondary';
+                                html += `<div class="mb-2"><strong>${market.instrument}:</strong> $${market.price.toFixed(5)} <span class="badge bg-${trendClass}">${market.trend}</span> (Spread: ${market.spread.toFixed(5)})</div>`;
+                            });
+                        } else if (insight.type === 'signals') {
+                            if (insight.data.length > 0) {
+                                insight.data.forEach(signal => {
+                                    const confClass = signal.confidence > 0.7 ? 'success' : signal.confidence > 0.5 ? 'warning' : 'secondary';
+                                    html += `<div class="mb-2"><strong>${signal.instrument} ${signal.side}:</strong> <span class="badge bg-${confClass}">${(signal.confidence * 100).toFixed(1)}%</span> (${signal.count} signals)</div>`;
+                                });
+                            } else {
+                                html += '<p class="text-muted">No active signals</p>';
+                            }
+                        } else if (insight.type === 'risk') {
+                            const riskClass = insight.data.risk_level === 'HIGH' ? 'danger' : insight.data.risk_level === 'MEDIUM' ? 'warning' : 'success';
+                            html += `<p><strong>Risk Level:</strong> <span class="badge bg-${riskClass}">${insight.data.risk_level}</span></p>`;
+                            html += `<p><strong>Trading Session:</strong> ${insight.data.trading_session}</p>`;
+                            html += `<p><strong>Circuit Breaker:</strong> ${insight.data.circuit_breaker_active ? '<span class="badge bg-danger">ACTIVE</span>' : '<span class="badge bg-success">INACTIVE</span>'}</p>`;
+                        } else if (insight.type === 'activity') {
+                            html += `<p><strong>Active Strategies:</strong> ${insight.data.active_strategies}</p>`;
+                            html += `<p><strong>Total Signals:</strong> ${insight.data.total_signals}</p>`;
+                            if (insight.data.strategies && insight.data.strategies.length > 0) {
+                                html += `<p><strong>Strategies:</strong> ${insight.data.strategies.join(', ')}</p>`;
+                            }
+                        }
+                        
+                        html += '</div></div></div>';
+                    });
+                    html += '</div>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p class="text-muted text-center py-4">AI insights not available. Connect to trading system to see insights.</p>';
+                }
+            })
+            .catch(e => {
+                console.error('Error loading insights:', e);
+                document.getElementById('insights-container').innerHTML = '<p class="text-muted text-center py-4">AI insights not available</p>';
+            });
+        
+        // Load recent trades
+        fetch('/api/trades/recent')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('recent-trades-container');
+                if (data.trades && data.trades.length > 0) {
+                    let html = '<div class="table-responsive"><table class="table table-striped table-hover"><thead><tr><th>Time</th><th>Instrument</th><th>Side</th><th>Units</th><th>Entry</th><th>Status</th><th>P&L</th><th>Strategy</th></tr></thead><tbody>';
+                    data.trades.slice(0, 20).forEach(trade => {
+                        const pnl = trade.pnl || 0;
+                        const pnlClass = pnl > 0 ? 'text-success' : pnl < 0 ? 'text-danger' : '';
+                        const statusClass = trade.status === 'OPEN' ? 'warning' : trade.status === 'CLOSED' ? (pnl > 0 ? 'success' : 'danger') : 'secondary';
+                        const time = trade.timestamp || trade.entry_time || '-';
+                        html += `<tr>
+                            <td>${time !== '-' ? new Date(time).toLocaleString() : '-'}</td>
+                            <td>${trade.instrument}</td>
+                            <td><span class="badge ${trade.side === 'BUY' ? 'bg-success' : 'bg-danger'}">${trade.side}</span></td>
+                            <td>${trade.units || '-'}</td>
+                            <td>${trade.entry_price ? trade.entry_price.toFixed(5) : '-'}</td>
+                            <td><span class="badge bg-${statusClass}">${trade.status || 'OPEN'}</span></td>
+                            <td class="${pnlClass}">${pnl !== 0 ? '$' + pnl.toFixed(2) : '-'}</td>
+                            <td>${trade.strategy || '-'}</td>
+                        </tr>`;
+                    });
+                    html += '</tbody></table></div>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p class="text-muted text-center py-4">No recent trades. Trades will appear here once executed.</p>';
+                }
+            })
+            .catch(e => {
+                console.error('Error loading recent trades:', e);
+                document.getElementById('recent-trades-container').innerHTML = '<p class="text-muted text-center py-4">Recent trades not available</p>';
             });
         
         // Load sentiment
