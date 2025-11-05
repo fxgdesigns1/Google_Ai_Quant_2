@@ -6,7 +6,84 @@
 <div class="row mb-4">
     <div class="col-12">
         <h1>Performance Analytics</h1>
-        <p class="text-muted">Coming soon - performance charts and statistics</p>
     </div>
 </div>
+
+<div class="row">
+    <div class="col-12">
+        <div id="performance-container">
+            <div class="text-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        loadPerformance();
+        setInterval(loadPerformance, 30000); // Refresh every 30 seconds
+    });
+    
+    function loadPerformance() {
+        fetch('/api/performance')
+            .then(r => r.json())
+            .then(data => {
+                const container = document.getElementById('performance-container');
+                if (data.performance && Object.keys(data.performance).length > 0) {
+                    let html = '<div class="row">';
+                    for (const [accountId, perf] of Object.entries(data.performance)) {
+                        html += `
+                            <div class="col-md-6 mb-4">
+                                <div class="card">
+                                    <div class="card-header bg-info text-white">
+                                        <strong>${perf.account_name}</strong>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <p><strong>Total Trades:</strong> ${perf.total_trades}</p>
+                                                <p><strong>Win Rate:</strong> <span class="${perf.win_rate >= 50 ? 'text-success' : 'text-danger'}">${Number(perf.win_rate || 0).toFixed(2)}%</span></p>
+                                                <p><strong>Wins:</strong> ${perf.win_count} | <strong>Losses:</strong> ${perf.loss_count}</p>
+                                                <p><strong>Total P&L:</strong> <span class="${perf.total_pnl >= 0 ? 'text-success' : 'text-danger'}">$${Number(perf.total_pnl || 0).toFixed(2)}</span></p>
+                                                <p><strong>Total P&L %:</strong> <span class="${perf.total_pnl_pct >= 0 ? 'text-success' : 'text-danger'}">${Number(perf.total_pnl_pct || 0).toFixed(2)}%</span></p>
+                                                <p><strong>Avg P&L:</strong> $${Number(perf.avg_pnl || 0).toFixed(2)}</p>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <p><strong>Profit Factor:</strong> <span class="${perf.profit_factor >= 1 ? 'text-success' : 'text-danger'}">${Number(perf.profit_factor || 0).toFixed(2)}</span></p>
+                                                <p><strong>Expectancy:</strong> <span class="${perf.expectancy >= 0 ? 'text-success' : 'text-danger'}">$${Number(perf.expectancy || 0).toFixed(2)}</span></p>
+                                                <p><strong>Sharpe Ratio:</strong> ${Number(perf.sharpe_ratio || 0).toFixed(2)}</p>
+                                                <p><strong>Max Drawdown:</strong> <span class="text-danger">$${Number(perf.max_drawdown || 0).toFixed(2)}</span></p>
+                                                <p><strong>Avg Win:</strong> <span class="text-success">$${Number(perf.avg_win || 0).toFixed(2)}</span></p>
+                                                <p><strong>Avg Loss:</strong> <span class="text-danger">$${Number(perf.avg_loss || 0).toFixed(2)}</span></p>
+                                            </div>
+                                        </div>
+                                        ${Object.keys(perf.strategy_stats).length > 0 ? `
+                                            <hr>
+                                            <h6>Strategy Breakdown:</h6>
+                                            ${Object.entries(perf.strategy_stats).map(([strategy, stats]) => `
+                                                <p><strong>${strategy}:</strong> ${stats.total_trades} trades, ${Number(stats.win_rate || 0).toFixed(1)}% win rate, $${Number(stats.total_pnl || 0).toFixed(2)} P&L</p>
+                                            `).join('')}
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    html += '</div>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p class="text-muted">No performance data available yet. Performance metrics will appear after trades are executed.</p>';
+                }
+            })
+            .catch(e => {
+                console.error('Error loading performance:', e);
+                document.getElementById('performance-container').innerHTML = '<p class="text-muted">Performance data not available</p>';
+            });
+    }
+</script>
 {% endblock %}

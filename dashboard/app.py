@@ -187,12 +187,15 @@ def api_positions():
 def api_strategies():
     """Get strategy status"""
     try:
+        if not system_components:
+            return jsonify({'strategies': {}})
         coordinator = system_components.get('strategy_coordinator')
         if coordinator:
             return jsonify({'strategies': coordinator.get_strategy_status()})
         return jsonify({'strategies': {}})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error in api_strategies: {e}", exc_info=True)
+        return jsonify({'strategies': {}})
 
 
 @app.route('/api/performance')
@@ -354,14 +357,18 @@ def api_sentiment():
 def enable_strategy(strategy_name):
     """Enable a strategy"""
     try:
+        if not system_components:
+            return jsonify({'error': 'Trading system not initialized'}), 503
         coordinator = system_components.get('strategy_coordinator')
-        if coordinator:
-            for strategy in coordinator.strategies:
-                if strategy.get_name() == strategy_name:
-                    strategy.enable()
-                    return jsonify({'success': True})
+        if not coordinator:
+            return jsonify({'error': 'Strategy coordinator not available'}), 503
+        for strategy in coordinator.strategies:
+            if strategy.get_name() == strategy_name:
+                strategy.enable()
+                return jsonify({'success': True})
         return jsonify({'error': 'Strategy not found'}), 404
     except Exception as e:
+        logger.error(f"Error enabling strategy: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 
@@ -369,14 +376,18 @@ def enable_strategy(strategy_name):
 def disable_strategy(strategy_name):
     """Disable a strategy"""
     try:
+        if not system_components:
+            return jsonify({'error': 'Trading system not initialized'}), 503
         coordinator = system_components.get('strategy_coordinator')
-        if coordinator:
-            for strategy in coordinator.strategies:
-                if strategy.get_name() == strategy_name:
-                    strategy.disable()
-                    return jsonify({'success': True})
+        if not coordinator:
+            return jsonify({'error': 'Strategy coordinator not available'}), 503
+        for strategy in coordinator.strategies:
+            if strategy.get_name() == strategy_name:
+                strategy.disable()
+                return jsonify({'success': True})
         return jsonify({'error': 'Strategy not found'}), 404
     except Exception as e:
+        logger.error(f"Error disabling strategy: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
 
