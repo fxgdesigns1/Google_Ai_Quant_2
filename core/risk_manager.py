@@ -51,6 +51,7 @@ class RiskManager:
     # Trading sessions (UTC)
     LONDON_SESSION = (time(7, 0), time(16, 0))   # 07:00-16:00 UTC
     NY_SESSION = (time(13, 0), time(21, 0))      # 13:00-21:00 UTC
+    LONDON_KILLZONE = (time(8, 0), time(12, 0))  # 08:00-12:00 UTC (Optimal London Killzone)
     
     def __init__(self, limits: RiskLimits = None, telegram_alerts: Optional[TelegramAlerts] = None, news_aggregator = None):
         """Initialize risk manager"""
@@ -245,12 +246,31 @@ class RiskManager:
         
         return False
     
+    def is_london_killzone(self, current_time: Optional[datetime] = None) -> bool:
+        """Check if current time is within London Killzone (08:00-12:00 UTC) - optimal trading window"""
+        if current_time is None:
+            current_time = datetime.utcnow()
+        
+        current_hour_minute = current_time.time()
+        
+        # London Killzone: 08:00-12:00 UTC (peak liquidity and volatility)
+        if self.LONDON_KILLZONE[0] <= current_hour_minute <= self.LONDON_KILLZONE[1]:
+            return True
+        
+        return False
+    
     def get_session_name(self, current_time: Optional[datetime] = None) -> str:
         """Get current trading session name"""
         if current_time is None:
             current_time = datetime.utcnow()
         
         current_hour_minute = current_time.time()
+        
+        # Check London Killzone first (most optimal)
+        if self.is_london_killzone(current_time):
+            if self.NY_SESSION[0] <= current_hour_minute <= self.NY_SESSION[1]:
+                return "LONDON KILLZONE + NY (Peak Liquidity)"
+            return "LONDON KILLZONE (Optimal)"
         
         # Check sessions
         if self.LONDON_SESSION[0] <= current_hour_minute <= self.LONDON_SESSION[1]:
