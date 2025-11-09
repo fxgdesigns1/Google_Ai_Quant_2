@@ -35,7 +35,6 @@ accounts:
       max_positions: 2
       daily_trade_limit: 10
       max_exposure_per_instrument_pct: 30
-      
     - id: "101-004-30719775-004"
       name: "Session Scalper"
       strategy: "session_scalper"

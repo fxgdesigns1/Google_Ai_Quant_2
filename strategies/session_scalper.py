@@ -1,16 +1,10 @@
 #!/usr/bin/env python3
 """
 Session Scalper Strategy
-========================
+=========================
 
-Multi-pair, session-aware scalping strategy that looks for intraday pullback
-continuation setups with a minimum reward-to-risk ratio of 2:1.
-
-Key features:
-  * Supports multiple FX pairs (and Gold) with per-instrument overrides.
-  * Trades only during configured high-liquidity sessions (London, New York by default).
-  * Generates multiple setups per session by scanning both trend directions.
-  * Dynamically sizes stops and targets off ATR to maintain target RR.
+Multi-pair, session-aware scalping strategy that targets at least three setups
+per session while enforcing a minimum 2:1 reward-to-risk ratio.
 """
 
 from __future__ import annotations
@@ -43,18 +37,18 @@ class SessionScalperStrategy(BaseStrategy):
 
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
-        self.lookback_bars = config.get("lookback_bars", 120)
+        self.lookback_bars = config.get("lookback_bars", 150)
         self.trend_period_fast = config.get("trend_period_fast", 9)
         self.trend_period_slow = config.get("trend_period_slow", 21)
-        self.base_stop_atr = config.get("base_stop_atr", 1.3)
+        self.base_stop_atr = config.get("base_stop_atr", 1.35)
         self.base_rr = max(2.0, config.get("target_rr", 2.2))
         self.pullback_atr_min = config.get("pullback_atr_min", 0.6)
         self.pullback_atr_max = config.get("pullback_atr_max", 2.1)
-        self.momentum_threshold = config.get("momentum_threshold", 0.15)
+        self.momentum_threshold = config.get("momentum_threshold", 0.18)
         self.min_confidence = config.get("min_confidence", 0.55)
         self.max_confidence = config.get("max_confidence", 0.9)
         self.max_setups_per_session = config.get("max_setups_per_session", 6)
-        self.min_signal_spacing_minutes = config.get("min_signal_spacing_minutes", 10)
+        self.min_signal_spacing_minutes = config.get("min_signal_spacing_minutes", 8)
 
         self.instrument_params: Dict[str, Dict[str, Any]] = {}
         for instrument in self.instruments:
@@ -105,7 +99,7 @@ class SessionScalperStrategy(BaseStrategy):
         self._reset_session_counts_if_needed(current_session, now.date())
 
         if self._session_counts[current_session] >= self.max_setups_per_session:
-            logger.debug("Session %s reached max setups (%d)", current_session, self.max_setups_per_session)
+            logger.debug("Session %s cap reached (%d)", current_session, self.max_setups_per_session)
             return signals
 
         for instrument in self.instruments:

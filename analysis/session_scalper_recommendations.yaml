@@ -9,11 +9,20 @@ marginal:
     notes: Positive but thin edge; include in focused sweeps.
 needs_tuning:
   - instrument: USD_JPY
-    actions: ["Cap position multiplier", "Tighten RR grid around 2.4", "Review session overlap"]
+    actions:
+      - Cap position multiplier
+      - Tighten RR grid around 2.4
+      - Review session overlap
   - instrument: EUR_USD
-    actions: ["Increase ATR stop multiple by 10-15%", "Require RR >= 2.3", "Check London-only window"]
+    actions:
+      - Increase ATR stop multiple by 10-15%
+      - Require RR >= 2.3
+      - Check London-only window
   - instrument: AUD_USD
-    actions: ["Lower leverage", "Raise stop multiple", "Confirm news avoidance filters"]
+    actions:
+      - Lower leverage
+      - Raise stop multiple
+      - Confirm news avoidance filters
 disabled:
   - instrument: NZD_USD
     reason: Negative expectancy across latest sweeps.
