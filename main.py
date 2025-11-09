@@ -41,6 +41,7 @@ from orchestrator.trade_closer import TradeCloser
 from strategies.gold_momentum import GoldMomentumStrategy
 from strategies.gold_scalping import GoldScalpingStrategy
 from strategies.gbp_usd_momentum import GbpUsdMomentumStrategy
+from strategies.session_scalper import SessionScalperStrategy
 
 
 def load_config():
@@ -172,7 +173,8 @@ def initialize_system(config):
     strategy_map = {
         'gold_momentum': GoldMomentumStrategy,
         'gold_scalping': GoldScalpingStrategy,
-        'gbp_usd_momentum': GbpUsdMomentumStrategy
+        'gbp_usd_momentum': GbpUsdMomentumStrategy,
+        'session_scalper': SessionScalperStrategy,
     }
     
     strategies = []

@@ -1,22 +1,19 @@
-# Session Scalper status recommendations (generated manually 2025-11-09)
+# Session Scalper status recommendations (2025-11-09)
 promote:
   - instrument: XAU_USD
-    run_id: null
-    notes: Primary performer; keep base risk but monitor RR >= 2.1.
+    notes: Strong net + PF; keep enabled.
   - instrument: USD_CAD
-    run_id: null
-    notes: Strong net and PF; retain session filters.
+    notes: Stable metrics; retain NY session focus.
 marginal:
   - instrument: GBP_USD
-    run_id: null
-    notes: Positive but thin edge; include in focused sweeps, tighten filters.
+    notes: Positive but thin edge; include in focused sweeps.
 needs_tuning:
-  - instrument: EUR_USD
-    reason: Increase stop band 10-15%, push RR >= 2.2, review session overlap.
-  - instrument: AUD_USD
-    reason: Low win rate; widen stop, reduce leverage.
   - instrument: USD_JPY
-    reason: Exposure spikes; add position cap and tighten RR grid.
+    actions: ["Cap position multiplier", "Tighten RR grid around 2.4", "Review session overlap"]
+  - instrument: EUR_USD
+    actions: ["Increase ATR stop multiple by 10-15%", "Require RR >= 2.3", "Check London-only window"]
+  - instrument: AUD_USD
+    actions: ["Lower leverage", "Raise stop multiple", "Confirm news avoidance filters"]
 disabled:
   - instrument: NZD_USD
-    reason: Negative expectancy across sweeps.
+    reason: Negative expectancy across latest sweeps.

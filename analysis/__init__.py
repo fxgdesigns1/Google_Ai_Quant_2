@@ -1,8 +1,7 @@
 """
-Analysis utilities package.
+Analysis utilities package for quantitative research workflows.
 
-This module aggregates helper functions used for strategy research
-and parameter optimization workflows.
+Currently provides Session Scalper optimisation helpers and Monte Carlo tools.
 """
 
 __all__ = []
